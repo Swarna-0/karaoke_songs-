@@ -1,8 +1,13 @@
 import streamlit as st
 import os
 import base64
+import json
 from streamlit.components.v1 import html
+<<<<<<< HEAD
 from urllib.parse import quote, unquote
+=======
+import hashlib
+>>>>>>> d46ad4e (Updated app)
 
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
 
@@ -12,17 +17,29 @@ media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
+<<<<<<< HEAD
+=======
+shared_links_dir = os.path.join(media_dir, "shared_links")
+metadata_path = os.path.join(media_dir, "song_metadata.json")
+
+>>>>>>> d46ad4e (Updated app)
 os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
+os.makedirs(shared_links_dir, exist_ok=True)
 
+<<<<<<< HEAD
 # Helper to convert file to base64 text
+=======
+# Helper functions
+>>>>>>> d46ad4e (Updated app)
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
 
+<<<<<<< HEAD
 # Logo loading or upload
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
 if not os.path.exists(default_logo_path):
@@ -39,6 +56,56 @@ if "page" not in st.session_state:
     st.session_state["page"] = "Songs List"
 
 # Utility function to get all uploaded songs
+=======
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def load_metadata():
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_metadata(data):
+    with open(metadata_path, "w") as f:
+        json.dump(data, f, indent=2)
+
+def load_shared_links():
+    links = {}
+    for filename in os.listdir(shared_links_dir):
+        if filename.endswith('.json'):
+            song_name = filename[:-5]
+            with open(os.path.join(shared_links_dir, filename), 'r') as f:
+                links[song_name] = json.load(f)
+    return links
+
+def save_shared_link(song_name, link_data):
+    with open(os.path.join(shared_links_dir, f"{song_name}.json"), 'w') as f:
+        json.dump(link_data, f)
+
+# Initialize session state
+if "user" not in st.session_state:
+    st.session_state.user = None
+if "role" not in st.session_state:
+    st.session_state.role = None
+if "page" not in st.session_state:
+    st.session_state.page = "Login"
+if "selected_song" not in st.session_state:
+    st.session_state.selected_song = None
+
+# Logo
+default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
+if not os.path.exists(default_logo_path):
+    st.warning("Upload a logo (PNG Transparent recommended)")
+    logo_upload = st.file_uploader("Upload Logo (PNG)", type=["png"], key="logo")
+    if logo_upload:
+        with open(default_logo_path, "wb") as f:
+            f.write(logo_upload.getbuffer())
+        st.rerun()
+logo_b64 = file_to_base64(default_logo_path)
+
+# Get songs function
+>>>>>>> d46ad4e (Updated app)
 def get_uploaded_songs():
     songs = []
     for f in os.listdir(songs_dir):
@@ -46,6 +113,7 @@ def get_uploaded_songs():
             songs.append(f.replace("_original.mp3", ""))
     return sorted(songs)
 
+<<<<<<< HEAD
 # URL query parameter handling for selected song
 query_params = st.query_params
 selected_song_from_url = query_params.get("karaoke", [None])[0]
@@ -75,13 +143,48 @@ if st.session_state["page"] == "Upload Songs":
 
     st.subheader("Upload New Song")
     col1, col2, col3 = st.columns(3)
-    with col1:
-        uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
-    with col2:
-        uploaded_accompaniment = st.file_uploader("Accompaniment (_accompaniment.mp3)", type=["mp3"], key="acc_upload")
-    with col3:
-        uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
+=======
+metadata = load_metadata()
+shared_links = load_shared_links()
 
+# =============== LOGIN PAGE ===============
+if st.session_state.page == "Login":
+    st.title("🎤 Karaoke Reels - Login")
+    
+    col1, col2 = st.columns([1,1])
+>>>>>>> d46ad4e (Updated app)
+    with col1:
+        st.subheader("👤 User Login")
+        username = st.text_input("Username", key="user_login")
+        password = st.text_input("Password", type="password", key="user_pass")
+        if st.button("User Login", key="user_login_btn"):
+            if username == "user1" and hash_password(password) == hash_password("user123"):
+                st.session_state.user = username
+                st.session_state.role = "user"
+                st.session_state.page = "User Dashboard"
+                st.rerun()
+            elif username == "user2" and hash_password(password) == hash_password("user456"):
+                st.session_state.user = username
+                st.session_state.role = "user"
+                st.session_state.page = "User Dashboard"
+                st.rerun()
+            else:
+                st.error("❌ తప్పు credentials!")
+    
+    with col2:
+        st.subheader("👑 Admin Login")
+        admin_user = st.text_input("Admin Username", key="admin_login")
+        admin_pass = st.text_input("Admin Password", type="password", key="admin_pass")
+        if st.button("Admin Login", key="admin_login_btn"):
+            if admin_user == "admin" and hash_password(admin_pass) == hash_password("admin123"):
+                st.session_state.user = admin_user
+                st.session_state.role = "admin"
+                st.session_state.page = "Admin Dashboard"
+                st.rerun()
+            else:
+                st.error("❌ తప్పు admin credentials!")
+
+<<<<<<< HEAD
     if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
         song_name = uploaded_original.name.replace("_original.mp3", "")
         with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
@@ -146,6 +249,154 @@ elif st.session_state["page"] == "Song Player":
         </style>
     """, unsafe_allow_html=True)
 
+=======
+    st.info("**Demo Credentials:**\n👤 user1/user123\n👤 user2/user456\n👑 admin/admin123")
+
+# =============== ADMIN DASHBOARD ===============
+elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
+    st.title(f"👑 Admin Dashboard - {st.session_state.user}")
+    
+    # Sidebar navigation
+    page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
+    
+    if page_sidebar == "Upload Songs":
+        st.subheader("Upload New Song")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
+        with col2:
+            uploaded_accompaniment = st.file_uploader("Accompaniment (_accompaniment.mp3)", type=["mp3"], key="acc_upload")
+        with col3:
+            uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
+
+        if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
+            song_name = uploaded_original.name
+            if song_name.endswith("_original.mp3"):
+                song_name = song_name.replace("_original.mp3", "")
+            else:
+                song_name = os.path.splitext(song_name)[0]
+            
+            with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
+                f.write(uploaded_original.getbuffer())
+            with open(os.path.join(songs_dir, f"{song_name}_accompaniment.mp3"), "wb") as f:
+                f.write(uploaded_accompaniment.getbuffer())
+            ext = os.path.splitext(uploaded_lyrics_image.name)[1]
+            with open(os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}"), "wb") as f:
+                f.write(uploaded_lyrics_image.getbuffer())
+            
+            metadata[song_name] = {"uploaded_by": st.session_state.user}
+            save_metadata(metadata)
+            st.success(f"✅ Uploaded: {song_name}")
+            st.rerun()
+    
+    elif page_sidebar == "Songs List":
+        st.subheader("Songs available:")
+        uploaded_songs = get_uploaded_songs()
+        if not uploaded_songs:
+            st.warning("❌ No songs uploaded yet.")
+        else:
+            for s in uploaded_songs:
+                col1, col2 = st.columns([3,1])
+                with col1:
+                    st.write(f"**{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                with col2:
+                    if st.button("Play", key=f"play_{s}"):
+                        st.session_state.selected_song = s
+                        st.session_state.page = "Song Player"
+                        st.rerun()
+                if st.button(f"🔗 Share {s}", key=f"share_{s}"):
+                    st.session_state.shared_song = s
+                    st.session_state.page = "Share Link"
+                    st.rerun()
+    
+    elif page_sidebar == "Share Links":
+        st.header("🔗 Manage Shared Links")
+        uploaded_songs = get_uploaded_songs()
+        shared_links_data = load_shared_links()
+        
+        for song in uploaded_songs:
+            col1, col2 = st.columns([3,1])
+            with col1:
+                link_status = "✅ Shared" if song in shared_links_data else "❌ Not Shared"
+                st.write(f"**{song}** - {link_status}")
+            with col2:
+                if st.button("Toggle Share", key=f"toggle_{song}"):
+                    if song in shared_links_data:
+                        os.remove(os.path.join(shared_links_dir, f"{song}.json"))
+                        st.success(f"{song} unshared!")
+                    else:
+                        save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
+                        st.success(f"{song} shared! Link: ?song={song}")
+                    st.rerun()
+    
+    if st.sidebar.button("🚪 Logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
+# =============== SHARE LINK PAGE ===============
+elif st.session_state.page == "Share Link" and st.session_state.role == "admin":
+    st.title("🔗 Generate Share Link")
+    song_to_share = st.session_state.get("shared_song")
+    if song_to_share:
+        st.success(f"✅ **{song_to_share}** share link generated!")
+        st.info(f"**Share this URL:** https://your-app.streamlit.app/?song={song_to_share}")
+        save_shared_link(song_to_share, {
+            "song": song_to_share,
+            "shared_by": st.session_state.user,
+            "active": True
+        })
+        if st.button("← Back to Dashboard"):
+            st.session_state.page = "Admin Dashboard"
+            st.rerun()
+    else:
+        st.error("No song selected!")
+        if st.button("← Back"):
+            st.session_state.page = "Admin Dashboard"
+            st.rerun()
+
+# =============== USER DASHBOARD ===============
+elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
+    st.title(f"👤 User Dashboard - {st.session_state.user}")
+    
+    query_params = st.query_params
+    direct_song = query_params.get("song", [None])[0]
+    
+    st.subheader("Available Songs")
+    
+    if direct_song and direct_song in get_uploaded_songs():
+        st.success(f"🎉 Direct access: **{direct_song}**")
+        if st.button(f"▶ Play {direct_song}"):
+            st.session_state.selected_song = direct_song
+            st.session_state.page = "Song Player"
+            st.rerun()
+    else:
+        st.warning("❌ No songs available. అడ్మిన్ నుండి link పొందండి!")
+    
+    if st.button("🚪 Logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
+# =============== SONG PLAYER - ORIGINAL FULL FEATURES ===============
+elif st.session_state.page == "Song Player":
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {display: none !important;}
+            section[data-testid="stAppViewContainer"] {padding: 0 !important;}
+            div.block-container {padding: 0 !important; margin: 0 !important;}
+            header {visibility: hidden !important;}
+            ::-webkit-scrollbar {width: 0px; background: transparent;}
+            html, body {overflow: hidden !important;}
+        </style>
+    """, unsafe_allow_html=True)
+
+    selected_song = st.session_state.get("selected_song", None)
+    if not selected_song:
+        st.error("No song selected!")
+        st.stop()
+
+>>>>>>> d46ad4e (Updated app)
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -160,6 +411,10 @@ elif st.session_state["page"] == "Song Player":
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
+<<<<<<< HEAD
+=======
+    # YOUR ORIGINAL FULL KARAOKE HTML TEMPLATE (COMPLETE)
+>>>>>>> d46ad4e (Updated app)
     karaoke_template = """ 
     <!doctype html>
     <html>
@@ -498,5 +753,8 @@ elif st.session_state["page"] == "Song Player":
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
+<<<<<<< HEAD
     # Fullscreen karaoke player inside Streamlit – no scroll
+=======
+>>>>>>> d46ad4e (Updated app)
     html(karaoke_html, height=700, width=1920)
