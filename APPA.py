@@ -298,16 +298,26 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
 
 # =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
+    
+    # Completely hide Manage App, Sidebar, Login UI
     st.markdown("""
         <style>
             [data-testid="stSidebar"] {display: none !important;}
-            section[data-testid="stAppViewContainer"] {padding: 0 !important;}
-            div.block-container {padding: 0 !important; margin: 0 !important;}
             header {visibility: hidden !important;}
-            ::-webkit-scrollbar {width: 0px; background: transparent;}
-            html, body {overflow: hidden !important;}
+            .st-emotion-cache-1pahdxg {display:none !important;} /* hide menu bar */
+            .st-emotion-cache-18ni7ap {padding: 0 !important;} /* remove padding */
+            footer {visibility: hidden !important;}
+            div.block-container {
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100vw !important;
+            }
+            html, body {
+                overflow: hidden !important;
+            }
         </style>
     """, unsafe_allow_html=True)
+
 
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
