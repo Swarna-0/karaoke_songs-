@@ -2,43 +2,36 @@ import streamlit as st
 import os
 import base64
 from streamlit.components.v1 import html
-from urllib.parse import quote, unquote
 
+# =========== CONFIG ==========
+# Admin credentials: set in Streamlit secrets for security
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "1234"
+
+
+# Page size
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
 
-# Base directories
+# =========== DIRECTORIES ==========
 base_dir = os.getcwd()
 media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
+
 os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 
-# Helper to convert file to base64 text
+# =========== HELPERS ==========
+
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
 
-# Logo loading or upload
-default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
-if not os.path.exists(default_logo_path):
-    st.warning("Upload a logo (PNG Transparent recommended)")
-    logo_upload = st.file_uploader("Upload Logo (PNG)", type=["png"], key="logo")
-    if logo_upload:
-        with open(default_logo_path, "wb") as f:
-            f.write(logo_upload.getbuffer())
-        st.experimental_rerun()
-logo_b64 = file_to_base64(default_logo_path)
 
-# Initialize page state if not set
-if "page" not in st.session_state:
-    st.session_state["page"] = "Songs List"
-
-# Utility function to get all uploaded songs
 def get_uploaded_songs():
     songs = []
     for f in os.listdir(songs_dir):
@@ -46,34 +39,68 @@ def get_uploaded_songs():
             songs.append(f.replace("_original.mp3", ""))
     return sorted(songs)
 
-# URL query parameter handling for selected song
-query_params = st.query_params
-selected_song_from_url = query_params.get("karaoke", [None])[0]
-uploaded_songs = get_uploaded_songs()
 
-if selected_song_from_url:
-    # Decode URL parameter 
-    selected_song_from_url = unquote(selected_song_from_url)
-    if selected_song_from_url in uploaded_songs:
-        st.session_state["selected_song"] = selected_song_from_url
-        st.session_state["page"] = "Song Player"
-    else:
-        # Remove invalid param from URL
-        st.set_query_params(...)
+# =========== PUBLIC ACCESS (via URL param) ==========
+query_params = st.experimental_get_query_params()
+requested_song = None
+if "song" in query_params:
+    requested_song = query_params["song"][0]
 
+# =========== LOGIN / AUTH ===========
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
-# MAIN PAGES - Sidebar for main navigation only if not in Song Player page
-if st.session_state["page"] in ["Upload Songs", "Songs List"]:
-    # Show sidebar only for main pages
-    page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"])
-    # Sync sidebar with session state
-    st.session_state["page"] = page_sidebar
+# If user requested a public song via URL, show player directly (no auth required)
+if requested_song:
+    st.session_state["selected_song"] = requested_song
+    st.session_state["page"] = "Song Player"
 
-# Upload Songs page
+# If not public request, show login for admin to access admin pages
+if not requested_song:
+    if not st.session_state["authenticated"]:
+        st.title("Admin Login 🔐")
+        username = st.text_input("Username", key="_login_user")
+        password = st.text_input("Password", type="password", key="_login_pass")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("Login"):
+                if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+                    st.session_state["authenticated"] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Wrong Credentials")
+        with col2:
+            st.write("\n")
+            st.write("Need to set credentials? Use Streamlit secrets (recommended).")
+        st.stop()
+
+# =========== NAVIGATION ===========
+if st.session_state.get("authenticated"):
+    menu = st.sidebar.radio("Admin Menu", ["Upload Songs", "Songs List"], index=0)
+    st.session_state["page"] = menu
+
+# If page not set, default to Songs List
+if "page" not in st.session_state:
+    st.session_state["page"] = "Songs List"
+
+# =========== LOGO HANDLING ==========
+default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
+if not os.path.exists(default_logo_path):
+    # allow admin to upload a logo if authenticated
+    if st.session_state.get("authenticated"):
+        st.sidebar.write("Upload logo (PNG transparent recommended)")
+        logo_upload = st.sidebar.file_uploader("Logo PNG", type=["png"], key="logo_upload")
+        if logo_upload:
+            with open(default_logo_path, "wb") as f:
+                f.write(logo_upload.getbuffer())
+            st.experimental_rerun()
+logo_b64 = file_to_base64(default_logo_path)
+
+# =========== ADMIN PAGES ==========
 if st.session_state["page"] == "Upload Songs":
-    st.title("🎤 Karaoke Reels - Upload Songs")
+    st.title("🎤 Karaoke Reels - Upload Songs (Admin)")
 
-    st.subheader("Upload New Song")
+    st.subheader("Upload New Song (Upload all 3 files)")
     col1, col2, col3 = st.columns(3)
     with col1:
         uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
@@ -83,7 +110,11 @@ if st.session_state["page"] == "Upload Songs":
         uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
 
     if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-        song_name = uploaded_original.name.replace("_original.mp3", "")
+        song_name = uploaded_original.name
+        if song_name.endswith("_original.mp3"):
+            song_name = song_name[:-len("_original.mp3")]
+        else:
+            song_name = os.path.splitext(song_name)[0]
         with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
             f.write(uploaded_original.getbuffer())
         with open(os.path.join(songs_dir, f"{song_name}_accompaniment.mp3"), "wb") as f:
@@ -94,58 +125,42 @@ if st.session_state["page"] == "Upload Songs":
         st.success(f"✅ Uploaded: {song_name}")
         st.experimental_rerun()
 
-# Songs List page
-elif st.session_state["page"] == "Songs List":
-    st.title("🎤 Karaoke Reels - Song Library")
 
+elif st.session_state["page"] == "Songs List":
+    st.title("🎤 Karaoke Reels - Song Library (Admin)")
     uploaded_songs = get_uploaded_songs()
     if not uploaded_songs:
         st.warning("❌ No songs uploaded yet. Please upload first.")
-        st.stop()
+    else:
+        st.write("### Songs available:")
+        for s in uploaded_songs:
+            col1, col2 = st.columns([3, 2])
+            with col1:
+                st.write(s)
+            with col2:
+                if st.button("Open Player", key=f"open_{s}"):
+                    st.session_state["selected_song"] = s
+                    st.session_state["page"] = "Song Player"
+                    st.rerun()
+                # shareable link
+                host = st.get_option("server.address")
+                port = st.get_option("server.port")
+                if port and str(port) not in ["80", "443"]:
+                    base_url = f"http://{host}:{port}/?song={s}"
+                else:
+                    base_url = f"http://{host}/?song={s}"
 
-    st.write("### Songs available:")
+                st.write("Share this link to users:")
+                st.code(base_url)
 
-    # Show songs as buttons - on click set selected_song and update URL param
-    for s in uploaded_songs:
-        if st.button(s):
-            st.session_state["selected_song"] = s
-            st.session_state["page"] = "Song Player"
-            # Update URL query param to reflect selected song
-            st.experimental_set_query_params(karaoke=quote(s))
-            st.rerun()
-
-# Song Player page - PURE FULLSCREEN, NO SCROLL
-elif st.session_state["page"] == "Song Player":
-    # Safety: if no selected song, go back to song list
-    selected_song = st.session_state.get("selected_song")
+# =========== SONG PLAYER (PUBLIC + ADMIN) ==========
+if st.session_state["page"] == "Song Player":
+    selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
-        # Clean URL param
-        st.set_query_params(...)
+        st.stop()
 
-        st.session_state["page"] = "Songs List"
-        st.rerun()
-
-    # Remove Streamlit padding, header, scrollbar
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] {display: none !important;}
-            section[data-testid="stAppViewContainer"] {
-                padding: 0 !important;
-            }
-            div.block-container {
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            header {visibility: hidden !important;}
-            /* Hide Streamlit scrollbar */
-            ::-webkit-scrollbar {width: 0px; background: transparent;}
-            html, body {
-                overflow: hidden !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
+    # Build paths dynamically based on selected song
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -160,7 +175,8 @@ elif st.session_state["page"] == "Song Player":
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    karaoke_template = """ 
+    # Karaoke HTML (same as previously used template)
+    karaoke_template = r"""
     <!doctype html>
     <html>
     <head>
@@ -498,6 +514,11 @@ elif st.session_state["page"] == "Song Player":
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-    # Fullscreen karaoke player inside Streamlit – no scroll
+    # Render fullscreen player inside Streamlit
     html(karaoke_html, height=700, width=1920)
 
+# =========== FOOTER / HELPER INFO ==========
+if st.session_state.get("authenticated"):
+    st.sidebar.write("\n---\nAdmin: you are logged in")
+    st.sidebar.write("Set admin credentials in .streamlit/secrets.toml as admin_username and admin_password for production.")
+    st.sidebar.write("Public song link example: https://<your-app>/?song=SONGNAME")
