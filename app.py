@@ -2,10 +2,9 @@ import streamlit as st
 import os
 import base64
 from streamlit.components.v1 import html
-
+from urllib.parse import quote, unquote
 
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
-
 
 # Base directories
 base_dir = os.getcwd()
@@ -17,14 +16,12 @@ os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 
-
 # Helper to convert file to base64 text
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
-
 
 # Logo loading or upload
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
@@ -37,13 +34,9 @@ if not os.path.exists(default_logo_path):
         st.experimental_rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
-
 # Initialize page state if not set
 if "page" not in st.session_state:
     st.session_state["page"] = "Songs List"
-if "selected_song" not in st.session_state:
-    st.session_state["selected_song"] = None
-
 
 # Utility function to get all uploaded songs
 def get_uploaded_songs():
@@ -53,17 +46,28 @@ def get_uploaded_songs():
             songs.append(f.replace("_original.mp3", ""))
     return sorted(songs)
 
+# URL query parameter handling for selected song
+query_params = st.query_params
+selected_song_from_url = query_params.get("karaoke", [None])[0]
+uploaded_songs = get_uploaded_songs()
 
-# MAIN PAGES - Sidebar only for main navigation
+if selected_song_from_url:
+    # Decode URL parameter 
+    selected_song_from_url = unquote(selected_song_from_url)
+    if selected_song_from_url in uploaded_songs:
+        st.session_state["selected_song"] = selected_song_from_url
+        st.session_state["page"] = "Song Player"
+    else:
+        # Remove invalid param from URL
+        st.set_query_params(...)
+
+
+# MAIN PAGES - Sidebar for main navigation only if not in Song Player page
 if st.session_state["page"] in ["Upload Songs", "Songs List"]:
     # Show sidebar only for main pages
-    page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"], index=["Upload Songs", "Songs List"].index(st.session_state["page"]))
+    page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"])
     # Sync sidebar with session state
-    if page_sidebar != st.session_state["page"]:
-        st.session_state["page"] = page_sidebar
-        st.session_state["selected_song"] = None
-        st.experimental_rerun()
-
+    st.session_state["page"] = page_sidebar
 
 # Upload Songs page
 if st.session_state["page"] == "Upload Songs":
@@ -79,11 +83,7 @@ if st.session_state["page"] == "Upload Songs":
         uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
 
     if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-        song_name = uploaded_original.name
-        if song_name.endswith("_original.mp3"):
-            song_name = song_name[:-len("_original.mp3")]
-        else:
-            song_name = os.path.splitext(song_name)[0]
+        song_name = uploaded_original.name.replace("_original.mp3", "")
         with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
             f.write(uploaded_original.getbuffer())
         with open(os.path.join(songs_dir, f"{song_name}_accompaniment.mp3"), "wb") as f:
@@ -93,7 +93,6 @@ if st.session_state["page"] == "Upload Songs":
             f.write(uploaded_lyrics_image.getbuffer())
         st.success(f"✅ Uploaded: {song_name}")
         st.experimental_rerun()
-
 
 # Songs List page
 elif st.session_state["page"] == "Songs List":
@@ -106,15 +105,27 @@ elif st.session_state["page"] == "Songs List":
 
     st.write("### Songs available:")
 
+    # Show songs as buttons - on click set selected_song and update URL param
     for s in uploaded_songs:
         if st.button(s):
             st.session_state["selected_song"] = s
             st.session_state["page"] = "Song Player"
+            # Update URL query param to reflect selected song
+            st.experimental_set_query_params(karaoke=quote(s))
             st.rerun()
-
 
 # Song Player page - PURE FULLSCREEN, NO SCROLL
 elif st.session_state["page"] == "Song Player":
+    # Safety: if no selected song, go back to song list
+    selected_song = st.session_state.get("selected_song")
+    if not selected_song:
+        st.error("No song selected!")
+        # Clean URL param
+        st.set_query_params(...)
+
+        st.session_state["page"] = "Songs List"
+        st.rerun()
+
     # Remove Streamlit padding, header, scrollbar
     st.markdown("""
         <style>
@@ -135,12 +146,6 @@ elif st.session_state["page"] == "Song Player":
         </style>
     """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.get("selected_song", None)
-    if not selected_song:
-        st.error("No song selected!")
-        st.stop()
-
-    # Build paths dynamically based on selected song
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
