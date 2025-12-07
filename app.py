@@ -9,7 +9,7 @@ from urllib.parse import unquote
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://fgzsz8utrdqwfej5u2tgjh.streamlit.app"  # <- Update with your actual URL
+APP_URL = "https://karaoke-song.onrender.com/"  # <- Update with your actual URL
 # ----------------------------------------------------------
 
 # Base directories
