@@ -3,7 +3,9 @@ import os
 import base64
 from streamlit.components.v1 import html
 
+
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
+
 
 # Base directories
 base_dir = os.getcwd()
@@ -15,12 +17,14 @@ os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 
+
 # Helper to convert file to base64 text
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
+
 
 # Logo loading or upload
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
@@ -33,9 +37,13 @@ if not os.path.exists(default_logo_path):
         st.experimental_rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
+
 # Initialize page state if not set
 if "page" not in st.session_state:
     st.session_state["page"] = "Songs List"
+if "selected_song" not in st.session_state:
+    st.session_state["selected_song"] = None
+
 
 # Utility function to get all uploaded songs
 def get_uploaded_songs():
@@ -45,12 +53,17 @@ def get_uploaded_songs():
             songs.append(f.replace("_original.mp3", ""))
     return sorted(songs)
 
+
 # MAIN PAGES - Sidebar only for main navigation
 if st.session_state["page"] in ["Upload Songs", "Songs List"]:
     # Show sidebar only for main pages
-    page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"])
+    page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"], index=["Upload Songs", "Songs List"].index(st.session_state["page"]))
     # Sync sidebar with session state
-    st.session_state["page"] = page_sidebar
+    if page_sidebar != st.session_state["page"]:
+        st.session_state["page"] = page_sidebar
+        st.session_state["selected_song"] = None
+        st.experimental_rerun()
+
 
 # Upload Songs page
 if st.session_state["page"] == "Upload Songs":
@@ -66,7 +79,11 @@ if st.session_state["page"] == "Upload Songs":
         uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
 
     if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-        song_name = uploaded_original.name.replace("_original.mp3", "")
+        song_name = uploaded_original.name
+        if song_name.endswith("_original.mp3"):
+            song_name = song_name[:-len("_original.mp3")]
+        else:
+            song_name = os.path.splitext(song_name)[0]
         with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
             f.write(uploaded_original.getbuffer())
         with open(os.path.join(songs_dir, f"{song_name}_accompaniment.mp3"), "wb") as f:
@@ -75,7 +92,8 @@ if st.session_state["page"] == "Upload Songs":
         with open(os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}"), "wb") as f:
             f.write(uploaded_lyrics_image.getbuffer())
         st.success(f"✅ Uploaded: {song_name}")
-        st.rerun()
+        st.experimental_rerun()
+
 
 # Songs List page
 elif st.session_state["page"] == "Songs List":
@@ -93,6 +111,7 @@ elif st.session_state["page"] == "Songs List":
             st.session_state["selected_song"] = s
             st.session_state["page"] = "Song Player"
             st.rerun()
+
 
 # Song Player page - PURE FULLSCREEN, NO SCROLL
 elif st.session_state["page"] == "Song Player":
@@ -121,7 +140,7 @@ elif st.session_state["page"] == "Song Player":
         st.error("No song selected!")
         st.stop()
 
-    # Nothing else on this page (no titles) so no extra scroll
+    # Build paths dynamically based on selected song
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -475,5 +494,4 @@ elif st.session_state["page"] == "Song Player":
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
     # Fullscreen karaoke player inside Streamlit – no scroll
-    # height taken as full viewport approx (adjust if needed)
     html(karaoke_html, height=700, width=1920)
