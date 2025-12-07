@@ -3,7 +3,7 @@ import os
 import base64
 import json
 from streamlit.components.v1 import html
-<<<<<<< HEAD
+
 from urllib.parse import quote, unquote
 =======
 import hashlib
@@ -184,7 +184,7 @@ if st.session_state.page == "Login":
             else:
                 st.error("❌ తప్పు admin credentials!")
 
-<<<<<<< HEAD
+
     if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
         song_name = uploaded_original.name.replace("_original.mp3", "")
         with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
@@ -411,7 +411,6 @@ elif st.session_state.page == "Song Player":
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-<<<<<<< HEAD
 =======
     # YOUR ORIGINAL FULL KARAOKE HTML TEMPLATE (COMPLETE)
 >>>>>>> d46ad4e (Updated app)
@@ -753,8 +752,8 @@ elif st.session_state.page == "Song Player":
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-<<<<<<< HEAD
+
     # Fullscreen karaoke player inside Streamlit – no scroll
 =======
->>>>>>> d46ad4e (Updated app)
+
     html(karaoke_html, height=700, width=1920)
