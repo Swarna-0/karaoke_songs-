@@ -1,5 +1,4 @@
-streamlit>=1.20
+streamlit>=1.20.0
+numpy>=1.21.0
 pydub>=0.25.1
-spleeter>=2.4.0    # optional — only if you want server-side separation
 ffmpeg-python>=0.3.0
-numpy
