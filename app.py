@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import base64
 from streamlit.components.v1 import html
-from urllib.parse import quote, unquote
 
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
 
@@ -46,23 +45,7 @@ def get_uploaded_songs():
             songs.append(f.replace("_original.mp3", ""))
     return sorted(songs)
 
-# URL query parameter handling for selected song
-query_params = st.query_params
-selected_song_from_url = query_params.get("karaoke", [None])[0]
-uploaded_songs = get_uploaded_songs()
-
-if selected_song_from_url:
-    # Decode URL parameter 
-    selected_song_from_url = unquote(selected_song_from_url)
-    if selected_song_from_url in uploaded_songs:
-        st.session_state["selected_song"] = selected_song_from_url
-        st.session_state["page"] = "Song Player"
-    else:
-        # Remove invalid param from URL
-        st.set_query_params(...)
-
-
-# MAIN PAGES - Sidebar for main navigation only if not in Song Player page
+# MAIN PAGES - Sidebar only for main navigation
 if st.session_state["page"] in ["Upload Songs", "Songs List"]:
     # Show sidebar only for main pages
     page_sidebar = st.sidebar.radio("Choose Page", ["Upload Songs", "Songs List"])
@@ -92,7 +75,7 @@ if st.session_state["page"] == "Upload Songs":
         with open(os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}"), "wb") as f:
             f.write(uploaded_lyrics_image.getbuffer())
         st.success(f"✅ Uploaded: {song_name}")
-        st.experimental_rerun()
+        st.rerun()
 
 # Songs List page
 elif st.session_state["page"] == "Songs List":
@@ -105,27 +88,14 @@ elif st.session_state["page"] == "Songs List":
 
     st.write("### Songs available:")
 
-    # Show songs as buttons - on click set selected_song and update URL param
     for s in uploaded_songs:
         if st.button(s):
             st.session_state["selected_song"] = s
             st.session_state["page"] = "Song Player"
-            # Update URL query param to reflect selected song
-            st.experimental_set_query_params(karaoke=quote(s))
             st.rerun()
 
 # Song Player page - PURE FULLSCREEN, NO SCROLL
 elif st.session_state["page"] == "Song Player":
-    # Safety: if no selected song, go back to song list
-    selected_song = st.session_state.get("selected_song")
-    if not selected_song:
-        st.error("No song selected!")
-        # Clean URL param
-        st.set_query_params(...)
-
-        st.session_state["page"] = "Songs List"
-        st.rerun()
-
     # Remove Streamlit padding, header, scrollbar
     st.markdown("""
         <style>
@@ -146,6 +116,12 @@ elif st.session_state["page"] == "Song Player":
         </style>
     """, unsafe_allow_html=True)
 
+    selected_song = st.session_state.get("selected_song", None)
+    if not selected_song:
+        st.error("No song selected!")
+        st.stop()
+
+    # Nothing else on this page (no titles) so no extra scroll
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -443,7 +419,7 @@ elif st.session_state["page"] == "Song Player":
 
                 finalPreviewImg.src = lyricsImg.src;
                 downloadRecordingBtn.href = url;
-                downloadRecordingBtn.setAttribute('download', ${Date.now()}_karaoke_output.webm);
+                downloadRecordingBtn.setAttribute('download', `${Date.now()}_karaoke_output.webm`);
 
                 mainScreen.style.display = 'none';
                 finalScreen.style.display = 'flex';
@@ -499,4 +475,5 @@ elif st.session_state["page"] == "Song Player":
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
     # Fullscreen karaoke player inside Streamlit – no scroll
+    # height taken as full viewport approx (adjust if needed)
     html(karaoke_html, height=700, width=1920)
