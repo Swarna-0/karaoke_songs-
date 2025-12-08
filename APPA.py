@@ -4,13 +4,18 @@ import base64
 import json
 from streamlit.components.v1 import html
 import hashlib
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://fgzsz8utrdqwfej5u2tgjh.streamlit.app"  # <- Update with your actual URL
+APP_URL = "https://karaoke-song.onrender.com/"
 # ----------------------------------------------------------
+
+# 🔒 SECURITY: Environment Variables for Password Hashes
+ADMIN_HASH = os.getenv("ADMIN_HASH", "")
+USER1_HASH = os.getenv("USER1_HASH", "")
+USER2_HASH = os.getenv("USER2_HASH", "")
 
 # Base directories
 base_dir = os.getcwd()
@@ -98,61 +103,56 @@ logo_b64 = file_to_base64(default_logo_path)
 metadata = load_metadata()
 shared_links = load_shared_links()
 
-# Handle direct URL ?song=... (deep link) - FIXED AND IMPROVED
+# Handle direct URL ?song=... (deep link)
 query_params = st.query_params
 direct_song = query_params.get("song", None)
 
 if direct_song:
-    # Try exact match first
-    candidate_path = os.path.join(songs_dir, f"{direct_song}_original.mp3")
-    if os.path.exists(candidate_path):
-        st.session_state.selected_song = direct_song
-        st.session_state.page = "Song Player"
-    else:
-        # Try URL decoded version
-        try:
-            ds_decoded = unquote(direct_song)
-            candidate_path2 = os.path.join(songs_dir, f"{ds_decoded}_original.mp3")
-            if os.path.exists(candidate_path2):
-                st.session_state.selected_song = ds_decoded
-                st.session_state.page = "Song Player"
-        except:
-            pass
+    try:
+        ds_decoded = unquote(direct_song) 
+        candidate_path = os.path.join(songs_dir, f"{ds_decoded}_original.mp3")
+        if os.path.exists(candidate_path):
+            st.session_state.selected_song = ds_decoded
+            st.session_state.page = "Song Player"
+        elif os.path.exists(os.path.join(songs_dir, f"{direct_song}_original.mp3")):
+            st.session_state.selected_song = direct_song
+            st.session_state.page = "Song Player"
+    except Exception as e:
+        pass
 
 # =============== LOGIN PAGE ===============
 if st.session_state.page == "Login":
-    # If direct link sets song, go straight to player (even without login for shared links)
     if st.session_state.get("selected_song"):
         st.session_state.page = "Song Player"
         st.rerun()
 
     st.title("🎤 Karaoke Reels - Login")
-    
+
     col1, col2 = st.columns([1,1])
     with col1:
         st.subheader("👤 User Login")
         username = st.text_input("Username", key="user_login")
         password = st.text_input("Password", type="password", key="user_pass")
         if st.button("User Login", key="user_login_btn"):
-            if username == "user1" and hash_password(password) == hash_password("user123"):
+            if username == "user1" and USER1_HASH and hash_password(password) == USER1_HASH:
                 st.session_state.user = username
                 st.session_state.role = "user"
                 st.session_state.page = "User Dashboard"
                 st.rerun()
-            elif username == "user2" and hash_password(password) == hash_password("user456"):
+            elif username == "user2" and USER2_HASH and hash_password(password) == USER2_HASH:
                 st.session_state.user = username
                 st.session_state.role = "user"
                 st.session_state.page = "User Dashboard"
                 st.rerun()
             else:
                 st.error("❌ తప్పు credentials!")
-    
+
     with col2:
         st.subheader("👑 Admin Login")
         admin_user = st.text_input("Admin Username", key="admin_login")
         admin_pass = st.text_input("Admin Password", type="password", key="admin_pass")
         if st.button("Admin Login", key="admin_login_btn"):
-            if admin_user == "admin" and hash_password(admin_pass) == hash_password("admin123"):
+            if admin_user == "admin" and ADMIN_HASH and hash_password(admin_pass) == ADMIN_HASH:
                 st.session_state.user = admin_user
                 st.session_state.role = "admin"
                 st.session_state.page = "Admin Dashboard"
@@ -160,15 +160,15 @@ if st.session_state.page == "Login":
             else:
                 st.error("❌ తప్పు admin credentials!")
 
-    st.info("**Demo Credentials:**\n👤 user1/user123\n👤 user2/user456\n👑 admin/admin123")
+    # 🔒 SECURITY NOTICE
+    st.warning("🔒 **Security Notice**: Credentials are now managed via Environment Variables. Contact admin for access.")
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
-    
-    # Sidebar navigation
+
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
-    
+
     if page_sidebar == "Upload Songs":
         st.subheader("📤 Upload New Song")
         col1, col2, col3 = st.columns(3)
@@ -185,8 +185,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 song_name = song_name.replace("_original.mp3", "")
             else:
                 song_name = os.path.splitext(song_name)[0]
-            
-            # Save files
+
             with open(os.path.join(songs_dir, f"{song_name}_original.mp3"), "wb") as f:
                 f.write(uploaded_original.getbuffer())
             with open(os.path.join(songs_dir, f"{song_name}_accompaniment.mp3"), "wb") as f:
@@ -194,12 +193,12 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
             ext = os.path.splitext(uploaded_lyrics_image.name)[1]
             with open(os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}"), "wb") as f:
                 f.write(uploaded_lyrics_image.getbuffer())
-            
+
             metadata[song_name] = {"uploaded_by": st.session_state.user}
             save_metadata(metadata)
-            st.success(f"✅ Uploaded: {song_name}")
+            st.success(f"✅ Uploaded: **{song_name}**")
             st.rerun()
-    
+
     elif page_sidebar == "Songs List":
         st.subheader("🎵 Songs List")
         uploaded_songs = get_uploaded_songs()
@@ -208,6 +207,8 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         else:
             for s in uploaded_songs:
                 col1, col2, col3 = st.columns([3, 1, 2])
+                safe_s = quote(s)
+                
                 with col1:
                     st.write(f"**{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
@@ -216,16 +217,18 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                         st.session_state.page = "Song Player"
                         st.rerun()
                 with col3:
-                    share_url = f"{APP_URL}/?song={s}"
-                    st.markdown(f"[🔗 **Share Link**]({share_url})", unsafe_allow_html=True)
-    
+                    share_url = f"{APP_URL}?song={safe_s}"
+                    st.markdown(f"🔗 **[Share Link]({share_url})**", unsafe_allow_html=True) 
+
     elif page_sidebar == "Share Links":
         st.header("🔗 Manage Shared Links")
         uploaded_songs = get_uploaded_songs()
         shared_links_data = load_shared_links()
-        
+
         for song in uploaded_songs:
             col1, col2, col3 = st.columns([3, 1, 2])
+            safe_song = quote(song)
+            
             with col1:
                 link_status = "✅ Shared" if song in shared_links_data else "❌ Not Shared"
                 st.write(f"**{song}** - {link_status}")
@@ -236,53 +239,29 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                             os.remove(os.path.join(shared_links_dir, f"{song}.json"))
                         except Exception:
                             pass
-                        st.success(f"{song} unshared!")
+                        st.success(f"**{song}** unshared!")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
-                        share_url = f"{APP_URL}/?song={song}"
-                        st.success(f"{song} shared! Link: {share_url}")
+                        share_url = f"{APP_URL}?song={safe_song}"
+                        st.success(f"**{song}** shared! Link: {share_url}")
                     st.rerun()
             with col3:
                 if song in shared_links_data:
-                    share_url = f"{APP_URL}/?song={song}"
-                    st.markdown(f"[📱 Open]({share_url})", unsafe_allow_html=True)
-    
+                    share_url = f"{APP_URL}?song={safe_song}"
+                    st.link_button("📱 Open", url=share_url)
+
     if st.sidebar.button("🚪 Logout"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
 
-# =============== SHARE LINK PAGE ===============
-elif st.session_state.page == "Share Link" and st.session_state.role == "admin":
-    st.title("🔗 Generate Share Link")
-    song_to_share = st.session_state.get("shared_song")
-    if song_to_share:
-        st.success(f"✅ **{song_to_share}** share link generated!")
-        share_url = f"{APP_URL}/?song={song_to_share}"
-        st.info(f"**Share this URL:** {share_url}")
-        st.markdown(f"[📱 **Click to Open Song**]({share_url})", unsafe_allow_html=True)
-        save_shared_link(song_to_share, {
-            "song": song_to_share,
-            "shared_by": st.session_state.user,
-            "active": True,
-            "share_url": share_url
-        })
-        if st.button("← Back to Dashboard"):
-            st.session_state.page = "Admin Dashboard"
-            st.rerun()
-    else:
-        st.error("No song selected!")
-        if st.button("← Back"):
-            st.session_state.page = "Admin Dashboard"
-            st.rerun()
-
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
     st.title(f"👤 User Dashboard - {st.session_state.user}")
-    
+
     st.subheader("Available Songs")
     st.warning("❌ No songs available here. అడ్మిన్ నుండి share link పొందండి!")
-    
+
     if st.session_state.get("selected_song"):
         direct = st.session_state.selected_song
         if direct in get_uploaded_songs():
@@ -298,26 +277,24 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
 
 # =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-    
-    # Completely hide Manage App, Sidebar, Login UI
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] {display: none !important;}
-            header {visibility: hidden !important;}
-            .st-emotion-cache-1pahdxg {display:none !important;} /* hide menu bar */
-            .st-emotion-cache-18ni7ap {padding: 0 !important;} /* remove padding */
-            footer {visibility: hidden !important;}
-            div.block-container {
-                padding: 0 !important;
-                margin: 0 !important;
-                width: 100vw !important;
-            }
-            html, body {
-                overflow: hidden !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none !important;}
+    header {visibility: hidden !important;}
+    .st-emotion-cache-1pahdxg {display:none !important;}
+    .st-emotion-cache-18ni7ap {padding: 0 !important;}
+    footer {visibility: hidden !important;}
+    div.block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+    }
+    html, body {
+        overflow: hidden !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
@@ -338,54 +315,53 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Karaoke HTML Template
-    karaoke_template = """ 
+    karaoke_template = """
     <!doctype html>
     <html>
     <head>
     <meta charset="utf-8">
     <title>Karaoke Reels</title>
     <style>
-      * { box-sizing: border-box; }
-      html, body {
-        margin:0; padding:0; width:100vw; height:100vh; overflow:hidden;
-        background:black; font-family: Poppins, Arial, sans-serif; color:#ddd;
-      }
-      .reel-container {width:100vw;height:100vh;position:relative;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;}
-      .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow: 0 8px 30px rgba(0,0,0,0.8);}
-      .controls {position:relative;margin-top:18px;text-align:center;z-index:30;}
-      button {background:linear-gradient(135deg,#ff0066,#ff66cc);border:none;color:white;padding:10px 18px;border-radius:25px;font-size:15px;cursor:pointer;margin:6px;box-shadow: 0 4px 18px rgba(255,0,128,0.25);}
-      button:active { transform:scale(.98); }
-      #status {position:absolute;top:18px;width:100%;text-align:center;font-size:15px;color:#ccc;text-shadow: 1px 1px 6px rgba(0,0,0,0.9);}
-      #logoImg {position:absolute;top:16px;left:16px;width:60px;opacity:0.7;z-index:40;}
-      .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:12px;}
-      #canvasPreview { display:none; }
-      .note { font-size:13px; color:#bbb; margin-top:8px; }
+    * { box-sizing: border-box; }
+    html, body {
+    margin:0; padding:0; width:100vw; height:100vh; overflow:hidden;
+    background:black; font-family: Poppins, Arial, sans-serif; color:#ddd;
+    }
+    .reel-container {width:100vw;height:100vh;position:relative;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+    .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow: 0 8px 30px rgba(0,0,0,0.8);}
+    .controls {position:relative;margin-top:18px;text-align:center;z-index:30;}
+    button {background:linear-gradient(135deg,#ff0066,#ff66cc);border:none;color:white;padding:10px 18px;border-radius:25px;font-size:15px;cursor:pointer;margin:6px;box-shadow: 0 4px 18px rgba(255,0,128,0.25);}
+    button:active { transform:scale(.98); }
+    #status {position:absolute;top:18px;width:100%;text-align:center;font-size:15px;color:#ccc;text-shadow: 1px 1px 6px rgba(0,0,0,0.9);}
+    #logoImg {position:absolute;top:16px;left:16px;width:60px;opacity:0.7;z-index:40;}
+    .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:12px;}
+    #canvasPreview { display:none; }
+    .note { font-size:13px; color:#bbb; margin-top:8px; }
     </style>
     </head>
     <body>
     <div class="reel-container" id="mainScreen">
-      <img id="lyricsImg" class="reel-bg" src="data:image/jpeg;base64,%%LYRICS_B64%%" onerror="this.onerror=null; this.src='';">
-      <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
-      <div id="status">Ready 🎤</div>
-      <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
-      <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
-      <div class="controls">
-        <button id="playBtn">▶ Play</button>
-        <button id="recordBtn">🎙 Record</button>
-        <button id="stopBtn" style="display:none;">⏹ Stop</button>
-      </div>
-      <div class="note">Recording happens in your browser. Play Recording in same page.</div>
+    <img id="lyricsImg" class="reel-bg" src="data:image/jpeg;base64,%%LYRICS_B64%%" onerror="this.onerror=null; this.src='';">
+    <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
+    <div id="status">Ready 🎤</div>
+    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
+    <div class="controls">
+    <button id="playBtn">▶ Play</button>
+    <button id="recordBtn">🎙 Record</button>
+    <button id="stopBtn" style="display:none;">⏹ Stop</button>
+    </div>
+    <div class="note">Recording happens in your browser. Play Recording in same page.</div>
     </div>
     <div class="final-screen" id="finalScreen">
-      <div style="text-align:center;"><img id="finalPreviewImg" class="reel-bg" style="max-height:60vh;"></div>
-      <div id="statusFinal" style="color:white;font-size:18px;">Done 🎧</div>
-      <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
-        <button id="playRecordingBtn">▶ Play Recording</button>
-        <a id="downloadRecordingBtn" download="karaoke_output.webm"><button>⬇ Download (webm)</button></a>
-        <button id="newBtn">🔄 Create New</button>
-      </div>
-      <div class="note">Tip: Recording playback stays on the same page.</div>
+    <div style="text-align:center;"><img id="finalPreviewImg" class="reel-bg" style="max-height:60vh;"></div>
+    <div id="statusFinal" style="color:white;font-size:18px;">Done 🎧</div>
+    <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+    <button id="playRecordingBtn">▶ Play Recording</button>
+    <a id="downloadRecordingBtn" download="karaoke_output.webm"><button>⬇ Download (webm)</button></a>
+    <button id="newBtn">🔄 Create New</button>
+    </div>
+    <div class="note">Tip: Recording playback stays on the same page.</div>
     </div>
     <canvas id="canvasPreview"></canvas>
     <script>
@@ -401,34 +377,34 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     async function safePlay(a){try{await a.play();}catch(e){console.log('play blocked',e);}}
     playBtn.onclick = async () => {if(original.paused){await safePlay(original);playBtn.innerText = "⏸ Pause";status.innerText="🎵 Playing Song...";}else{original.pause();playBtn.innerText = "▶ Play";status.innerText="⏸ Paused";}};
     recordBtn.onclick = async () => {
-        recordedChunks = []; status.innerText="🎙 Preparing mic...";
-        let micStream; try {micStream = await navigator.mediaDevices.getUserMedia({audio:{ echoCancellation:true, noiseSuppression:true },video:false});} catch(err){alert('Allow microphone access');return;}
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const micSource = audioCtx.createMediaStreamSource(micStream);
-        const accResp = await fetch(acc.src); const accBuf = await accResp.arrayBuffer(); const accDecoded = await audioCtx.decodeAudioData(accBuf);
-        const accSource = audioCtx.createBufferSource(); accSource.buffer = accDecoded; const dest = audioCtx.createMediaStreamDestination();
-        const micGain = audioCtx.createGain(); micGain.gain.value=1.0; const accGain = audioCtx.createGain(); accGain.gain.value=0.7;
-        micSource.connect(micGain).connect(dest); accSource.connect(accGain).connect(dest);
-        const accOutSource = audioCtx.createBufferSource(); accOutSource.buffer = accDecoded; accOutSource.connect(audioCtx.destination);
-        accSource.start(); accOutSource.start(); await new Promise(res=>setTimeout(res,150));
-        const img = lyricsImg; const w = img.naturalWidth||1280; const h = img.naturalHeight||720; canvas.width=w; canvas.height=h; let rafId;
-        function drawFrame(){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(img && img.src){const iw=img.naturalWidth||canvas.width;const ih=img.naturalHeight||canvas.height;const scale=Math.max(canvas.width/iw,canvas.height/ih);const dw=iw*scale;const dh=ih*scale;const dx=(canvas.width-dw)/2;const dy=(canvas.height-dh)/2;ctx.drawImage(img,dx,dy,dw,dh);}if(logoImg.complete){const logoWidth = 100;const logoHeight = logoImg.naturalHeight * (logoWidth / logoImg.naturalWidth);ctx.globalAlpha = 0.7;ctx.drawImage(logoImg, 20, 20, logoWidth, logoHeight);ctx.globalAlpha = 1.0;}rafId=requestAnimationFrame(drawFrame);}drawFrame();
-        const canvasStream = canvas.captureStream(25); const mixedAudioStream = dest.stream; const combinedStream = new MediaStream();
-        canvasStream.getVideoTracks().forEach(t => combinedStream.addTrack(t)); mixedAudioStream.getAudioTracks().forEach(t => combinedStream.addTrack(t));
-        try{mediaRecorder = new MediaRecorder(combinedStream, {mimeType:'video/webm;codecs=vp8,opus'});}catch(e){mediaRecorder = new MediaRecorder(combinedStream);}
-        mediaRecorder.ondataavailable = (e) => {if(e.data && e.data.size > 0) recordedChunks.push(e.data);}; mediaRecorder.start();
-        original.currentTime=0; acc.currentTime=0; try{ await original.play(); }catch(e){} try{ await acc.play(); }catch(e){}
-        playBtn.style.display = "none"; recordBtn.style.display = "none"; stopBtn.style.display = "inline-block"; status.innerText = "🎙 Recording...";
-        original.onended = async () => { stopRecording(); }; stopBtn.onclick = async () => { stopRecording(); };
-        async function stopRecording(){try{ mediaRecorder.stop(); }catch(e){} try{ accSource.stop(); accOutSource.stop(); audioCtx.close(); }catch(e){} cancelAnimationFrame(rafId); try{ original.pause(); acc.pause(); }catch(e){} try{ micStream.getTracks().forEach(t=>t.stop()); }catch(e){}
-            status.innerText="⏳ Processing mix... Please wait"; stopBtn.style.display = "none";
-            mediaRecorder.onstop = async () => {
-                mixedBlob = new Blob(recordedChunks, { type:'video/webm' }); const url = URL.createObjectURL(mixedBlob);
-                finalPreviewImg.src = lyricsImg.src; downloadRecordingBtn.href = url; downloadRecordingBtn.setAttribute('download', `${Date.now()}_karaoke_output.webm`);
-                mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = '🎧 Ready';
-                playRecordingBtn.onclick = () => {if (!mixedBlob) return; if (!isPlaying) {playRecordingAudio = new Audio(url); playRecordingAudio.play(); isPlaying = true; playRecordingBtn.innerText = "⏹ Stop"; playRecordingAudio.onended = () => {isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";};} else {playRecordingAudio.pause(); playRecordingAudio.currentTime = 0; isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";}};
-                newBtn.onclick = () => {finalScreen.style.display = 'none'; mainScreen.style.display = 'flex'; status.innerText = "Ready 🎤"; playBtn.style.display = "inline-block"; playBtn.innerText = "▶ Play"; recordBtn.style.display = "inline-block"; stopBtn.style.display = "none"; if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio = null; isPlaying = false;} mixedBlob = null; recordedChunks = [];};
-            };
-        }
+    recordedChunks = []; status.innerText="🎙 Preparing mic...";
+    let micStream; try {micStream = await navigator.mediaDevices.getUserMedia({audio:{ echoCancellation:true, noiseSuppression:true },video:false});} catch(err){alert('Allow microphone access');return;}
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const micSource = audioCtx.createMediaStreamSource(micStream);
+    const accResp = await fetch(acc.src); const accBuf = await accResp.arrayBuffer(); const accDecoded = await audioCtx.decodeAudioData(accBuf);
+    const accSource = audioCtx.createBufferSource(); accSource.buffer = accDecoded; const dest = audioCtx.createMediaStreamDestination();
+    const micGain = audioCtx.createGain(); micGain.gain.value=1.0; const accGain = audioCtx.createGain(); accGain.gain.value=0.7;
+    micSource.connect(micGain).connect(dest); accSource.connect(accGain).connect(dest);
+    const accOutSource = audioCtx.createBufferSource(); accOutSource.buffer = accDecoded; accOutSource.connect(audioCtx.destination);
+    accSource.start(); accOutSource.start(); await new Promise(res=>setTimeout(res,150));
+    const img = lyricsImg; const w = img.naturalWidth||1280; const h = img.naturalHeight||720; canvas.width=w; canvas.height=h; let rafId;
+    function drawFrame(){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(img && img.src){const iw=img.naturalWidth||canvas.width;const ih=img.naturalHeight||canvas.height;const scale=Math.max(canvas.width/iw,canvas.height/ih);const dw=iw*scale;const dh=ih*scale;const dx=(canvas.width-dw)/2;const dy=(canvas.height-dh)/2;ctx.drawImage(img,dx,dy,dw,dh);}if(logoImg.complete){const logoWidth = 100;const logoHeight = logoImg.naturalHeight * (logoWidth / logoImg.naturalWidth);ctx.globalAlpha = 0.7;ctx.drawImage(logoImg, 20, 20, logoWidth, logoHeight);ctx.globalAlpha = 1.0;}rafId=requestAnimationFrame(drawFrame);}drawFrame();
+    const canvasStream = canvas.captureStream(25); const mixedAudioStream = dest.stream; const combinedStream = new MediaStream();
+    canvasStream.getVideoTracks().forEach(t => combinedStream.addTrack(t)); mixedAudioStream.getAudioTracks().forEach(t => combinedStream.addTrack(t));
+    try{mediaRecorder = new MediaRecorder(combinedStream, {mimeType:'video/webm;codecs=vp8,opus'});}catch(e){mediaRecorder = new MediaRecorder(combinedStream);}
+    mediaRecorder.ondataavailable = (e) => {if(e.data && e.data.size > 0) recordedChunks.push(e.data);}; mediaRecorder.start();
+    original.currentTime=0; acc.currentTime=0; try{ await original.play(); }catch(e){} try{ await acc.play(); }catch(e){}
+    playBtn.style.display = "none"; recordBtn.style.display = "none"; stopBtn.style.display = "inline-block"; status.innerText = "🎙 Recording...";
+    original.onended = async () => { stopRecording(); }; stopBtn.onclick = async () => { stopRecording(); };
+    async function stopRecording(){try{ mediaRecorder.stop(); }catch(e){} try{ accSource.stop(); accOutSource.stop(); audioCtx.close(); }catch(e){} cancelAnimationFrame(rafId); try{ original.pause(); acc.pause(); }catch(e){} try{ micStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    status.innerText="⏳ Processing mix... Please wait"; stopBtn.style.display = "none";
+    mediaRecorder.onstop = async () => {
+    mixedBlob = new Blob(recordedChunks, { type:'video/webm' }); const url = URL.createObjectURL(mixedBlob);
+    finalPreviewImg.src = lyricsImg.src; downloadRecordingBtn.href = url; downloadRecordingBtn.setAttribute('download', `${Date.now()}_karaoke_output.webm`);
+    mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = '🎧 Ready';
+    playRecordingBtn.onclick = () => {if (!mixedBlob) return; if (!isPlaying) {playRecordingAudio = new Audio(url); playRecordingAudio.play(); isPlaying = true; playRecordingBtn.innerText = "⏹ Stop"; playRecordingAudio.onended = () => {isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";};} else {playRecordingAudio.pause(); playRecordingAudio.currentTime = 0; isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";}};
+    newBtn.onclick = () => {finalScreen.style.display = 'none'; mainScreen.style.display = 'flex'; status.innerText = "Ready 🎤"; playBtn.style.display = "inline-block"; playBtn.innerText = "▶ Play"; recordBtn.style.display = "inline-block"; stopBtn.style.display = "none"; if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio = null; isPlaying = false;} mixedBlob = null; recordedChunks = [];};
+    };
+    }
     };
     </script>
     </body>
