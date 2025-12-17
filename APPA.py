@@ -6,7 +6,7 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
-st.set_page_config(page_title="🎤 Karaoke Reels", layout="wide")
+st.set_page_config(page_title="🎤 branks3-sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
 APP_URL = "https://karaoke-song.onrender.com/"
