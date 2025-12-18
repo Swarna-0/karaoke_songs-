@@ -11,93 +11,112 @@ st.set_page_config(page_title="🎙 sing-along", layout="wide")
 # NEON Dark Theme CSS for Streamlit
 st.markdown("""
 <style>
-    /* Dark theme for entire app */
-    .stApp {
-        background: linear-gradient(135deg, #0a0e17 0%, #1a1f2e 50%, #16213e 100%);
-        color: #e1e5e9;
-    }
-    /* NEON Primary button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #00d4ff, #0099cc);
-        color: white;
-        border: 2px solid rgba(0, 212, 255, 0.3);
-        border-radius: 12px;
-        padding: 10px 20px;
-        font-weight: 600;
-        box-shadow: 
-            0 0 20px rgba(0, 212, 255, 0.4),
-            0 4px 15px rgba(0, 212, 255, 0.2),
-            inset 0 1px 0 rgba(255,255,255,0.2);
-        transition: all 0.3s ease;
-        text-shadow: 0 0 10px rgba(0,212,255,0.5);
-    }
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #00e6ff, #00b8d4);
-        box-shadow: 
-            0 0 30px rgba(0, 212, 255, 0.6),
-            0 6px 20px rgba(0, 212, 255, 0.3);
-        transform: translateY(-2px);
-        border-color: rgba(0, 212, 255, 0.6);
-    }
-    .stButton > button:active {
-        transform: translateY(0);
-        box-shadow: 
-            0 0 15px rgba(0, 212, 255, 0.4),
-            0 2px 10px rgba(0, 212, 255, 0.2);
-    }
-    /* NEON Success buttons (Play, Toggle) */
-    .stButton > button[data-testid*="play"], 
-    .stButton > button[data-testid*="toggle"] {
-        background: linear-gradient(135deg, #00ff88, #00cc6a);
-        border-color: rgba(0, 255, 136, 0.4);
-        box-shadow: 
-            0 0 20px rgba(0, 255, 136, 0.4),
-            0 4px 15px rgba(0, 255, 136, 0.2);
-        text-shadow: 0 0 10px rgba(0,255,136,0.5);
-    }
-    .stButton > button[data-testid*="play"]:hover,
-    .stButton > button[data-testid*="toggle"]:hover {
-        box-shadow: 
-            0 0 30px rgba(0, 255, 136, 0.6),
-            0 6px 20px rgba(0, 255, 136, 0.3);
-        border-color: rgba(0, 255, 136, 0.6);
-    }
-    /* NEON Danger buttons (Logout, Record) */
-    .stButton > button[data-testid*="logout"] {
-        background: linear-gradient(135deg, #ff4757, #ff3742);
-        border-color: rgba(255, 71, 87, 0.4);
-        box-shadow: 
-            0 0 20px rgba(255, 71, 87, 0.4),
-            0 4px 15px rgba(255, 71, 87, 0.2);
-        text-shadow: 0 0 10px rgba(255,71,87,0.5);
-    }
-    .stButton > button[data-testid*="logout"]:hover {
-        box-shadow: 
-            0 0 30px rgba(255, 71, 87, 0.6),
-            0 6px 20px rgba(255, 71, 87, 0.3);
-        border-color: rgba(255, 71, 87, 0.6);
-    }
-    /* Input fields */
-    .stTextInput > div > div > input {
-        background: linear-gradient(135deg, #1a1f2e, #16213e);
-        color: #e1e5e9;
-        border: 2px solid rgba(0, 212, 255, 0.2);
-        border-radius: 10px;
-        box-shadow: 0 0 15px rgba(0, 212, 255, 0.1);
-    }
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(135deg, #111827, #1a1f2e);
-        border-right: 1px solid rgba(0, 212, 255, 0.1);
-    }
-    /* Radio buttons */
-    .stRadio > div {
-        background: linear-gradient(135deg, #1f2937, #16213e);
-        color: #e1e5e9;
-        border-radius: 8px;
-    }
+/* ================= GLOBAL DARK THEME ================= */
+.stApp {
+    background-color: #05070d;
+    color: #e6f1ff;
+    font-family: 'Poppins', sans-serif;
+}
+
+/* ================= PRIMARY NEON BUTTON ================= */
+.stButton > button {
+    background: linear-gradient(135deg, #00f5ff, #00c8ff);
+    color: #021018;
+    border: 1px solid rgba(0,245,255,0.6);
+    border-radius: 14px;
+    padding: 10px 20px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+
+    box-shadow:
+        0 0 8px rgba(0,245,255,0.6),
+        0 0 16px rgba(0,200,255,0.4),
+        inset 0 0 6px rgba(255,255,255,0.3);
+
+    transition: all 0.25s ease;
+}
+
+/* Hover Glow */
+.stButton > button:hover {
+    background: linear-gradient(135deg, #00ffff, #38bdf8);
+    transform: translateY(-2px) scale(1.02);
+
+    box-shadow:
+        0 0 12px rgba(0,255,255,0.9),
+        0 0 28px rgba(56,189,248,0.7),
+        inset 0 0 8px rgba(255,255,255,0.35);
+}
+
+/* Click Effect */
+.stButton > button:active {
+    transform: scale(0.97);
+    box-shadow:
+        0 0 6px rgba(0,255,255,0.6),
+        inset 0 0 6px rgba(0,0,0,0.6);
+}
+
+/* ================= PLAY / SUCCESS BUTTON ================= */
+.stButton > button[data-testid*="play"],
+.stButton > button[data-testid*="toggle"] {
+    background: linear-gradient(135deg, #22ff88, #00ffcc);
+    color: #022015;
+    border: 1px solid rgba(0,255,170,0.6);
+
+    box-shadow:
+        0 0 10px rgba(0,255,170,0.8),
+        0 0 22px rgba(0,255,204,0.5);
+}
+
+.stButton > button[data-testid*="play"]:hover {
+    box-shadow:
+        0 0 14px rgba(0,255,170,1),
+        0 0 30px rgba(0,255,204,0.8);
+}
+
+/* ================= DANGER / LOGOUT BUTTON ================= */
+.stButton > button[data-testid*="logout"] {
+    background: linear-gradient(135deg, #ff2a6d, #ff0055);
+    color: white;
+    border: 1px solid rgba(255,0,85,0.6);
+
+    box-shadow:
+        0 0 10px rgba(255,42,109,0.8),
+        0 0 22px rgba(255,0,85,0.6);
+}
+
+.stButton > button[data-testid*="logout"]:hover {
+    box-shadow:
+        0 0 14px rgba(255,42,109,1),
+        0 0 32px rgba(255,0,85,0.9);
+}
+
+/* ================= INPUT BOXES ================= */
+.stTextInput > div > div > input {
+    background: #0b1220;
+    color: #e6f1ff;
+    border-radius: 10px;
+    border: 1px solid rgba(0,245,255,0.35);
+    padding: 10px;
+
+    box-shadow: inset 0 0 6px rgba(0,245,255,0.2);
+}
+
+/* ================= SIDEBAR ================= */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #030712, #050b1a);
+    border-right: 1px solid rgba(0,245,255,0.15);
+}
+
+/* ================= METRICS / RADIO ================= */
+.stMetric, .stRadio > div {
+    background: #0b1220;
+    border-radius: 12px;
+    border: 1px solid rgba(0,245,255,0.2);
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 # --------- CONFIG: set your deployed app URL here ----------
 APP_URL = "https://karaoke-song.onrender.com/"
