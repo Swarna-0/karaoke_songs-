@@ -8,6 +8,86 @@ from urllib.parse import unquote, quote
 
 st.set_page_config(page_title="🎙 sing-along", layout="wide")
 
+# Dark theme CSS for Streamlit
+st.markdown("""
+<style>
+    /* Dark theme for entire app */
+    .stApp {
+        background-color: #0e1117;
+        color: #e1e5e9;
+    }
+    /* Primary button styling for dark theme */
+    .stButton > button {
+        background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        transform: translateY(-1px);
+    }
+    .stButton > button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+    /* Secondary button styling */
+    .stButton > button[aria-label*="secondary"] {
+        background: linear-gradient(135deg, #1f2937, #374151);
+        box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
+    }
+    .stButton > button[aria-label*="secondary"]:hover {
+        background: linear-gradient(135deg, #111827, #1f2937);
+        box-shadow: 0 6px 16px rgba(55, 65, 81, 0.4);
+    }
+    /* Success buttons (Play, Toggle) */
+    .stButton > button[data-testid*="play"], 
+    .stButton > button[data-testid*="toggle"] {
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .stButton > button[data-testid*="play"]:hover,
+    .stButton > button[data-testid*="toggle"]:hover {
+        background: linear-gradient(135deg, #047857, #059669);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    /* Danger buttons (Logout) */
+    .stButton > button[data-testid*="logout"] {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+    .stButton > button[data-testid*="logout"]:hover {
+        background: linear-gradient(135deg, #b91c1c, #dc2626);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    }
+    /* Input fields */
+    .stTextInput > div > div > input {
+        background-color: #1f2937;
+        color: #e1e5e9;
+        border: 1px solid #374151;
+        border-radius: 6px;
+    }
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #111827;
+    }
+    /* Metric containers */
+    .stMetric {
+        background-color: #1f2937;
+    }
+    /* Radio buttons */
+    .stRadio > div {
+        background-color: #1f2937;
+        color: #e1e5e9;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --------- CONFIG: set your deployed app URL here ----------
 APP_URL = "https://karaoke-song.onrender.com/"
 # ----------------------------------------------------------
@@ -315,6 +395,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
+    # Updated karaoke template with dark theme button colors
     karaoke_template = """
     <!doctype html>
     <html>
@@ -330,8 +411,69 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .reel-container {width:100vw;height:100vh;position:relative;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;}
     .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow: 0 8px 30px rgba(0,0,0,0.8);}
     .controls {position:relative;margin-top:18px;text-align:center;z-index:30;}
-    button {background:linear-gradient(135deg,#ff0066,#ff66cc);border:none;color:white;padding:10px 18px;border-radius:25px;font-size:15px;cursor:pointer;margin:6px;box-shadow: 0 4px 18px rgba(255,0,128,0.25);}
-    button:active { transform:scale(.98); }
+    button {
+        background: linear-gradient(135deg, #1e40af, #3b82f6);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        margin: 8px;
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        transition: all 0.3s ease;
+        min-width: 90px;
+    }
+    button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+    }
+    button:active {
+        transform: scale(0.98) translateY(0);
+    }
+    #playBtn {
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    #playBtn:hover {
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+    }
+    #recordBtn {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    }
+    #recordBtn:hover {
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+    }
+    #stopBtn {
+        background: linear-gradient(135deg, #6b7280, #9ca3af);
+        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
+    }
+    #stopBtn:hover {
+        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
+    }
+    #playRecordingBtn {
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    #playRecordingBtn:hover {
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+    }
+    #downloadRecordingBtn {
+        background: linear-gradient(135deg, #eab308, #f59e0b);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    }
+    #downloadRecordingBtn:hover {
+        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
+    }
+    #newBtn {
+        background: linear-gradient(135deg, #6b7280, #9ca3af);
+        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
+    }
+    #newBtn:hover {
+        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
+    }
     #status {position:absolute;top:18px;width:100%;text-align:center;font-size:15px;color:#ccc;text-shadow: 1px 1px 6px rgba(0,0,0,0.9);}
     #logoImg {position:absolute;top:16px;left:16px;width:60px;opacity:0.7;z-index:40;}
     .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:12px;}
@@ -400,7 +542,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     mediaRecorder.onstop = async () => {
     mixedBlob = new Blob(recordedChunks, { type:'video/webm' }); const url = URL.createObjectURL(mixedBlob);
     finalPreviewImg.src = lyricsImg.src; downloadRecordingBtn.href = url; downloadRecordingBtn.setAttribute('download', `${Date.now()}_karaoke_output.webm`);
-    mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = ;
+    mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = "Done 🎧";
     playRecordingBtn.onclick = () => {if (!mixedBlob) return; if (!isPlaying) {playRecordingAudio = new Audio(url); playRecordingAudio.play(); isPlaying = true; playRecordingBtn.innerText = "⏹ Stop"; playRecordingAudio.onended = () => {isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";};} else {playRecordingAudio.pause(); playRecordingAudio.currentTime = 0; isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";}};
     newBtn.onclick = () => {finalScreen.style.display = 'none'; mainScreen.style.display = 'flex'; status.innerText = "Ready 🎤"; playBtn.style.display = "inline-block"; playBtn.innerText = "▶ Play"; recordBtn.style.display = "inline-block"; stopBtn.style.display = "none"; if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio = null; isPlaying = false;} mixedBlob = null; recordedChunks = [];};
     };
