@@ -8,82 +8,93 @@ from urllib.parse import unquote, quote
 
 st.set_page_config(page_title="🎙 sing-along", layout="wide")
 
-# Dark theme CSS for Streamlit
+# NEON Dark Theme CSS for Streamlit
 st.markdown("""
 <style>
     /* Dark theme for entire app */
     .stApp {
-        background-color: #0e1117;
+        background: linear-gradient(135deg, #0a0e17 0%, #1a1f2e 50%, #16213e 100%);
         color: #e1e5e9;
     }
-    /* Primary button styling for dark theme */
+    /* NEON Primary button styling */
     .stButton > button {
-        background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        background: linear-gradient(135deg, #00d4ff, #0099cc);
         color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: 500;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        transition: all 0.2s ease;
+        border: 2px solid rgba(0, 212, 255, 0.3);
+        border-radius: 12px;
+        padding: 10px 20px;
+        font-weight: 600;
+        box-shadow: 
+            0 0 20px rgba(0, 212, 255, 0.4),
+            0 4px 15px rgba(0, 212, 255, 0.2),
+            inset 0 1px 0 rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+        text-shadow: 0 0 10px rgba(0,212,255,0.5);
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #1d4ed8, #2563eb);
-        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
-        transform: translateY(-1px);
+        background: linear-gradient(135deg, #00e6ff, #00b8d4);
+        box-shadow: 
+            0 0 30px rgba(0, 212, 255, 0.6),
+            0 6px 20px rgba(0, 212, 255, 0.3);
+        transform: translateY(-2px);
+        border-color: rgba(0, 212, 255, 0.6);
     }
     .stButton > button:active {
         transform: translateY(0);
-        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        box-shadow: 
+            0 0 15px rgba(0, 212, 255, 0.4),
+            0 2px 10px rgba(0, 212, 255, 0.2);
     }
-    /* Secondary button styling */
-    .stButton > button[aria-label*="secondary"] {
-        background: linear-gradient(135deg, #1f2937, #374151);
-        box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
-    }
-    .stButton > button[aria-label*="secondary"]:hover {
-        background: linear-gradient(135deg, #111827, #1f2937);
-        box-shadow: 0 6px 16px rgba(55, 65, 81, 0.4);
-    }
-    /* Success buttons (Play, Toggle) */
+    /* NEON Success buttons (Play, Toggle) */
     .stButton > button[data-testid*="play"], 
     .stButton > button[data-testid*="toggle"] {
-        background: linear-gradient(135deg, #059669, #10b981);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        background: linear-gradient(135deg, #00ff88, #00cc6a);
+        border-color: rgba(0, 255, 136, 0.4);
+        box-shadow: 
+            0 0 20px rgba(0, 255, 136, 0.4),
+            0 4px 15px rgba(0, 255, 136, 0.2);
+        text-shadow: 0 0 10px rgba(0,255,136,0.5);
     }
     .stButton > button[data-testid*="play"]:hover,
     .stButton > button[data-testid*="toggle"]:hover {
-        background: linear-gradient(135deg, #047857, #059669);
-        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        box-shadow: 
+            0 0 30px rgba(0, 255, 136, 0.6),
+            0 6px 20px rgba(0, 255, 136, 0.3);
+        border-color: rgba(0, 255, 136, 0.6);
     }
-    /* Danger buttons (Logout) */
+    /* NEON Danger buttons (Logout, Record) */
     .stButton > button[data-testid*="logout"] {
-        background: linear-gradient(135deg, #dc2626, #ef4444);
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        background: linear-gradient(135deg, #ff4757, #ff3742);
+        border-color: rgba(255, 71, 87, 0.4);
+        box-shadow: 
+            0 0 20px rgba(255, 71, 87, 0.4),
+            0 4px 15px rgba(255, 71, 87, 0.2);
+        text-shadow: 0 0 10px rgba(255,71,87,0.5);
     }
     .stButton > button[data-testid*="logout"]:hover {
-        background: linear-gradient(135deg, #b91c1c, #dc2626);
-        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+        box-shadow: 
+            0 0 30px rgba(255, 71, 87, 0.6),
+            0 6px 20px rgba(255, 71, 87, 0.3);
+        border-color: rgba(255, 71, 87, 0.6);
     }
     /* Input fields */
     .stTextInput > div > div > input {
-        background-color: #1f2937;
+        background: linear-gradient(135deg, #1a1f2e, #16213e);
         color: #e1e5e9;
-        border: 1px solid #374151;
-        border-radius: 6px;
+        border: 2px solid rgba(0, 212, 255, 0.2);
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.1);
     }
     /* Sidebar */
     section[data-testid="stSidebar"] {
-        background-color: #111827;
-    }
-    /* Metric containers */
-    .stMetric {
-        background-color: #1f2937;
+        background: linear-gradient(135deg, #111827, #1a1f2e);
+        border-right: 1px solid rgba(0, 212, 255, 0.1);
     }
     /* Radio buttons */
     .stRadio > div {
-        background-color: #1f2937;
+        background: linear-gradient(135deg, #1f2937, #16213e);
         color: #e1e5e9;
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -395,7 +406,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Fixed karaoke template - No yellow colors, clean download button, no "Done 🎧" text
+    # NEON Karaoke Player Template
     karaoke_template = """
     <!doctype html>
     <html>
@@ -406,96 +417,111 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     * { box-sizing: border-box; }
     html, body {
     margin:0; padding:0; width:100vw; height:100vh; overflow:hidden;
-    background:black; font-family: Poppins, Arial, sans-serif; color:#ddd;
+    background: linear-gradient(135deg, #0a0e17 0%, #1a1f2e 50%, #16213e 100%);
+    font-family: 'Poppins', Arial, sans-serif; color:#e1e5e9;
     }
     .reel-container {width:100vw;height:100vh;position:relative;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;}
-    .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow: 0 8px 30px rgba(0,0,0,0.8);}
-    .controls {position:relative;margin-top:18px;text-align:center;z-index:30;}
-    button {
-        background: linear-gradient(135deg, #1e40af, #3b82f6);
-        border: none;
+    .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:12px;box-shadow: 0 0 40px rgba(0,212,255,0.3);}
+    .controls {position:relative;margin-top:20px;text-align:center;z-index:30;}
+    button, a {
+        background: linear-gradient(135deg, #00d4ff, #0099cc);
+        border: 2px solid rgba(0,212,255,0.4);
         color: white;
-        padding: 12px 24px;
-        border-radius: 25px;
+        padding: 14px 28px;
+        border-radius: 30px;
         font-size: 16px;
-        font-weight: 500;
+        font-weight: 600;
         cursor: pointer;
-        margin: 8px;
-        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-        transition: all 0.3s ease;
-        min-width: 90px;
+        margin: 10px;
+        box-shadow: 
+            0 0 25px rgba(0,212,255,0.5),
+            0 6px 25px rgba(0,212,255,0.3),
+            inset 0 1px 0 rgba(255,255,255,0.2);
+        transition: all 0.4s ease;
+        min-width: 100px;
         text-decoration: none;
         display: inline-block;
+        text-shadow: 0 0 12px rgba(0,212,255,0.6);
+        position: relative;
+        overflow: hidden;
     }
-    button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+    button::before, a::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        transition: left 0.5s;
     }
-    button:active {
-        transform: scale(0.98) translateY(0);
+    button:hover::before, a:hover::before { left: 100%; }
+    button:hover, a:hover {
+        transform: translateY(-3px);
+        box-shadow: 
+            0 0 40px rgba(0,212,255,0.7),
+            0 8px 30px rgba(0,212,255,0.4);
+        border-color: rgba(0,212,255,0.8);
+    }
+    button:active, a:active {
+        transform: scale(0.97) translateY(0);
     }
     #playBtn {
-        background: linear-gradient(135deg, #059669, #10b981);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-    }
-    #playBtn:hover {
-        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+        background: linear-gradient(135deg, #00ff88, #00cc6a);
+        border-color: rgba(0,255,136,0.5);
+        box-shadow: 
+            0 0 25px rgba(0,255,136,0.5),
+            0 6px 25px rgba(0,255,136,0.3);
+        text-shadow: 0 0 12px rgba(0,255,136,0.6);
     }
     #playBtn.pause-state {
-        background: linear-gradient(135deg, #6b7280, #9ca3af);
-        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
-    }
-    #playBtn.pause-state:hover {
-        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border-color: rgba(99,102,241,0.5);
+        box-shadow: 
+            0 0 25px rgba(99,102,241,0.5),
+            0 6px 25px rgba(99,102,241,0.3);
+        text-shadow: 0 0 12px rgba(99,102,241,0.6);
     }
     #recordBtn {
-        background: linear-gradient(135deg, #dc2626, #ef4444);
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        background: linear-gradient(135deg, #ff4757, #ff3742);
+        border-color: rgba(255,71,87,0.5);
+        box-shadow: 
+            0 0 25px rgba(255,71,87,0.5),
+            0 6px 25px rgba(255,71,87,0.3);
+        text-shadow: 0 0 12px rgba(255,71,87,0.6);
     }
-    #recordBtn:hover {
-        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
-    }
-    #stopBtn {
+    #stopBtn, #newBtn {
         background: linear-gradient(135deg, #6b7280, #9ca3af);
-        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
-    }
-    #stopBtn:hover {
-        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
+        border-color: rgba(107,114,128,0.4);
+        box-shadow: 
+            0 0 20px rgba(107,114,128,0.4),
+            0 4px 20px rgba(107,114,128,0.2);
+        text-shadow: 0 0 8px rgba(107,114,128,0.5);
     }
     #playRecordingBtn {
-        background: linear-gradient(135deg, #059669, #10b981);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-    }
-    #playRecordingBtn:hover {
-        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+        background: linear-gradient(135deg, #00ff88, #00cc6a);
+        border-color: rgba(0,255,136,0.5);
+        box-shadow: 
+            0 0 25px rgba(0,255,136,0.5),
+            0 6px 25px rgba(0,255,136,0.3);
+        text-shadow: 0 0 12px rgba(0,255,136,0.6);
     }
     #downloadBtn {
-        background: linear-gradient(135deg, #eab308, #f59e0b);
-        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
-        text-decoration: none !important;
-        padding: 12px 24px;
-        margin: 8px;
-        border-radius: 25px;
-        display: inline-block;
-        min-width: 90px;
+        background: linear-gradient(135deg, #ffd700, #ffed4a);
+        color: #1a1f2e;
+        border-color: rgba(255,215,0,0.6);
+        box-shadow: 
+            0 0 25px rgba(255,215,0,0.5),
+            0 6px 25px rgba(255,215,0,0.3);
+        text-shadow: 0 0 12px rgba(255,215,0,0.6);
+        font-weight: 700;
     }
-    #downloadBtn:hover {
-        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
-        text-decoration: none !important;
-    }
-    #newBtn {
-        background: linear-gradient(135deg, #6b7280, #9ca3af);
-        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
-    }
-    #newBtn:hover {
-        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
-    }
-    #status {position:absolute;top:18px;width:100%;text-align:center;font-size:15px;color:#ccc;text-shadow: 1px 1px 6px rgba(0,0,0,0.9);}
-    #logoImg {position:absolute;top:16px;left:16px;width:60px;opacity:0.7;z-index:40;}
-    .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:12px;}
+    #status {position:absolute;top:20px;width:100%;text-align:center;font-size:16px;color:#00d4ff;text-shadow: 0 0 15px rgba(0,212,255,0.8);}
+    #logoImg {position:absolute;top:20px;left:20px;width:70px;opacity:0.9;z-index:40;filter: drop-shadow(0 0 10px rgba(0,212,255,0.5));}
+    .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,14,23,0.98);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:15px;}
     #canvasPreview { display:none; }
-    .note { font-size:13px; color:#bbb; margin-top:8px; }
-    .download-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px; }
+    .note { font-size:14px; color:#a0a0a0; margin-top:10px; text-shadow: 0 0 10px rgba(0,212,255,0.2); }
+    .download-container { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 10px; }
     </style>
     </head>
     <body>
