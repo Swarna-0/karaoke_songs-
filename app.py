@@ -8,115 +8,85 @@ from urllib.parse import unquote, quote
 
 st.set_page_config(page_title="🎙 sing-along", layout="wide")
 
-# NEON Dark Theme CSS for Streamlit
+# Dark theme CSS for Streamlit
 st.markdown("""
 <style>
-/* ================= GLOBAL DARK THEME ================= */
-.stApp {
-    background-color: #05070d;
-    color: #e6f1ff;
-    font-family: 'Poppins', sans-serif;
-}
-
-/* ================= PRIMARY NEON BUTTON ================= */
-.stButton > button {
-    background: linear-gradient(135deg, #00f5ff, #00c8ff);
-    color: #021018;
-    border: 1px solid rgba(0,245,255,0.6);
-    border-radius: 14px;
-    padding: 10px 20px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    cursor: pointer;
-
-    box-shadow:
-        0 0 8px rgba(0,245,255,0.6),
-        0 0 16px rgba(0,200,255,0.4),
-        inset 0 0 6px rgba(255,255,255,0.3);
-
-    transition: all 0.25s ease;
-}
-
-/* Hover Glow */
-.stButton > button:hover {
-    background: linear-gradient(135deg, #00ffff, #38bdf8);
-    transform: translateY(-2px) scale(1.02);
-
-    box-shadow:
-        0 0 12px rgba(0,255,255,0.9),
-        0 0 28px rgba(56,189,248,0.7),
-        inset 0 0 8px rgba(255,255,255,0.35);
-}
-
-/* Click Effect */
-.stButton > button:active {
-    transform: scale(0.97);
-    box-shadow:
-        0 0 6px rgba(0,255,255,0.6),
-        inset 0 0 6px rgba(0,0,0,0.6);
-}
-
-/* ================= PLAY / SUCCESS BUTTON ================= */
-.stButton > button[data-testid*="play"],
-.stButton > button[data-testid*="toggle"] {
-    background: linear-gradient(135deg, #22ff88, #00ffcc);
-    color: #022015;
-    border: 1px solid rgba(0,255,170,0.6);
-
-    box-shadow:
-        0 0 10px rgba(0,255,170,0.8),
-        0 0 22px rgba(0,255,204,0.5);
-}
-
-.stButton > button[data-testid*="play"]:hover {
-    box-shadow:
-        0 0 14px rgba(0,255,170,1),
-        0 0 30px rgba(0,255,204,0.8);
-}
-
-/* ================= DANGER / LOGOUT BUTTON ================= */
-.stButton > button[data-testid*="logout"] {
-    background: linear-gradient(135deg, #ff2a6d, #ff0055);
-    color: white;
-    border: 1px solid rgba(255,0,85,0.6);
-
-    box-shadow:
-        0 0 10px rgba(255,42,109,0.8),
-        0 0 22px rgba(255,0,85,0.6);
-}
-
-.stButton > button[data-testid*="logout"]:hover {
-    box-shadow:
-        0 0 14px rgba(255,42,109,1),
-        0 0 32px rgba(255,0,85,0.9);
-}
-
-/* ================= INPUT BOXES ================= */
-.stTextInput > div > div > input {
-    background: #0b1220;
-    color: #e6f1ff;
-    border-radius: 10px;
-    border: 1px solid rgba(0,245,255,0.35);
-    padding: 10px;
-
-    box-shadow: inset 0 0 6px rgba(0,245,255,0.2);
-}
-
-/* ================= SIDEBAR ================= */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #030712, #050b1a);
-    border-right: 1px solid rgba(0,245,255,0.15);
-}
-
-/* ================= METRICS / RADIO ================= */
-.stMetric, .stRadio > div {
-    background: #0b1220;
-    border-radius: 12px;
-    border: 1px solid rgba(0,245,255,0.2);
-}
+    /* Dark theme for entire app */
+    .stApp {
+        background-color: #0e1117;
+        color: #e1e5e9;
+    }
+    /* Primary button styling for dark theme */
+    .stButton > button {
+        background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        transform: translateY(-1px);
+    }
+    .stButton > button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+    /* Secondary button styling */
+    .stButton > button[aria-label*="secondary"] {
+        background: linear-gradient(135deg, #1f2937, #374151);
+        box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
+    }
+    .stButton > button[aria-label*="secondary"]:hover {
+        background: linear-gradient(135deg, #111827, #1f2937);
+        box-shadow: 0 6px 16px rgba(55, 65, 81, 0.4);
+    }
+    /* Success buttons (Play, Toggle) */
+    .stButton > button[data-testid*="play"], 
+    .stButton > button[data-testid*="toggle"] {
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .stButton > button[data-testid*="play"]:hover,
+    .stButton > button[data-testid*="toggle"]:hover {
+        background: linear-gradient(135deg, #047857, #059669);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    /* Danger buttons (Logout) */
+    .stButton > button[data-testid*="logout"] {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+    .stButton > button[data-testid*="logout"]:hover {
+        background: linear-gradient(135deg, #b91c1c, #dc2626);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    }
+    /* Input fields */
+    .stTextInput > div > div > input {
+        background-color: #1f2937;
+        color: #e1e5e9;
+        border: 1px solid #374151;
+        border-radius: 6px;
+    }
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #111827;
+    }
+    /* Metric containers */
+    .stMetric {
+        background-color: #1f2937;
+    }
+    /* Radio buttons */
+    .stRadio > div {
+        background-color: #1f2937;
+        color: #e1e5e9;
+    }
 </style>
 """, unsafe_allow_html=True)
-
 
 # --------- CONFIG: set your deployed app URL here ----------
 APP_URL = "https://karaoke-song.onrender.com/"
@@ -425,7 +395,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # NEON Karaoke Player Template
+    # Fixed karaoke template - No yellow colors, clean download button, no "Done 🎧" text
     karaoke_template = """
     <!doctype html>
     <html>
@@ -436,111 +406,96 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     * { box-sizing: border-box; }
     html, body {
     margin:0; padding:0; width:100vw; height:100vh; overflow:hidden;
-    background: linear-gradient(135deg, #0a0e17 0%, #1a1f2e 50%, #16213e 100%);
-    font-family: 'Poppins', Arial, sans-serif; color:#e1e5e9;
+    background:black; font-family: Poppins, Arial, sans-serif; color:#ddd;
     }
     .reel-container {width:100vw;height:100vh;position:relative;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;}
-    .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:12px;box-shadow: 0 0 40px rgba(0,212,255,0.3);}
-    .controls {position:relative;margin-top:20px;text-align:center;z-index:30;}
-    button, a {
-        background: linear-gradient(135deg, #00d4ff, #0099cc);
-        border: 2px solid rgba(0,212,255,0.4);
+    .reel-bg {max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;box-shadow: 0 8px 30px rgba(0,0,0,0.8);}
+    .controls {position:relative;margin-top:18px;text-align:center;z-index:30;}
+    button {
+        background: linear-gradient(135deg, #1e40af, #3b82f6);
+        border: none;
         color: white;
-        padding: 14px 28px;
-        border-radius: 30px;
+        padding: 12px 24px;
+        border-radius: 25px;
         font-size: 16px;
-        font-weight: 600;
+        font-weight: 500;
         cursor: pointer;
-        margin: 10px;
-        box-shadow: 
-            0 0 25px rgba(0,212,255,0.5),
-            0 6px 25px rgba(0,212,255,0.3),
-            inset 0 1px 0 rgba(255,255,255,0.2);
-        transition: all 0.4s ease;
-        min-width: 100px;
+        margin: 8px;
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        transition: all 0.3s ease;
+        min-width: 90px;
         text-decoration: none;
         display: inline-block;
-        text-shadow: 0 0 12px rgba(0,212,255,0.6);
-        position: relative;
-        overflow: hidden;
     }
-    button::before, a::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-        transition: left 0.5s;
+    button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
     }
-    button:hover::before, a:hover::before { left: 100%; }
-    button:hover, a:hover {
-        transform: translateY(-3px);
-        box-shadow: 
-            0 0 40px rgba(0,212,255,0.7),
-            0 8px 30px rgba(0,212,255,0.4);
-        border-color: rgba(0,212,255,0.8);
-    }
-    button:active, a:active {
-        transform: scale(0.97) translateY(0);
+    button:active {
+        transform: scale(0.98) translateY(0);
     }
     #playBtn {
-        background: linear-gradient(135deg, #00ff88, #00cc6a);
-        border-color: rgba(0,255,136,0.5);
-        box-shadow: 
-            0 0 25px rgba(0,255,136,0.5),
-            0 6px 25px rgba(0,255,136,0.3);
-        text-shadow: 0 0 12px rgba(0,255,136,0.6);
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    #playBtn:hover {
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
     }
     #playBtn.pause-state {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        border-color: rgba(99,102,241,0.5);
-        box-shadow: 
-            0 0 25px rgba(99,102,241,0.5),
-            0 6px 25px rgba(99,102,241,0.3);
-        text-shadow: 0 0 12px rgba(99,102,241,0.6);
+        background: linear-gradient(135deg, #6b7280, #9ca3af);
+        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
+    }
+    #playBtn.pause-state:hover {
+        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
     }
     #recordBtn {
-        background: linear-gradient(135deg, #ff4757, #ff3742);
-        border-color: rgba(255,71,87,0.5);
-        box-shadow: 
-            0 0 25px rgba(255,71,87,0.5),
-            0 6px 25px rgba(255,71,87,0.3);
-        text-shadow: 0 0 12px rgba(255,71,87,0.6);
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
     }
-    #stopBtn, #newBtn {
+    #recordBtn:hover {
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+    }
+    #stopBtn {
         background: linear-gradient(135deg, #6b7280, #9ca3af);
-        border-color: rgba(107,114,128,0.4);
-        box-shadow: 
-            0 0 20px rgba(107,114,128,0.4),
-            0 4px 20px rgba(107,114,128,0.2);
-        text-shadow: 0 0 8px rgba(107,114,128,0.5);
+        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
+    }
+    #stopBtn:hover {
+        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
     }
     #playRecordingBtn {
-        background: linear-gradient(135deg, #00ff88, #00cc6a);
-        border-color: rgba(0,255,136,0.5);
-        box-shadow: 
-            0 0 25px rgba(0,255,136,0.5),
-            0 6px 25px rgba(0,255,136,0.3);
-        text-shadow: 0 0 12px rgba(0,255,136,0.6);
+        background: linear-gradient(135deg, #059669, #10b981);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    #playRecordingBtn:hover {
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
     }
     #downloadBtn {
-        background: linear-gradient(135deg, #ffd700, #ffed4a);
-        color: #1a1f2e;
-        border-color: rgba(255,215,0,0.6);
-        box-shadow: 
-            0 0 25px rgba(255,215,0,0.5),
-            0 6px 25px rgba(255,215,0,0.3);
-        text-shadow: 0 0 12px rgba(255,215,0,0.6);
-        font-weight: 700;
+        background: linear-gradient(135deg, #eab308, #f59e0b);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+        text-decoration: none !important;
+        padding: 12px 24px;
+        margin: 8px;
+        border-radius: 25px;
+        display: inline-block;
+        min-width: 90px;
     }
-    #status {position:absolute;top:20px;width:100%;text-align:center;font-size:16px;color:#00d4ff;text-shadow: 0 0 15px rgba(0,212,255,0.8);}
-    #logoImg {position:absolute;top:20px;left:20px;width:70px;opacity:0.9;z-index:40;filter: drop-shadow(0 0 10px rgba(0,212,255,0.5));}
-    .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,14,23,0.98);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:15px;}
+    #downloadBtn:hover {
+        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
+        text-decoration: none !important;
+    }
+    #newBtn {
+        background: linear-gradient(135deg, #6b7280, #9ca3af);
+        box-shadow: 0 6px 20px rgba(156, 163, 175, 0.4);
+    }
+    #newBtn:hover {
+        box-shadow: 0 8px 25px rgba(156, 163, 175, 0.5);
+    }
+    #status {position:absolute;top:18px;width:100%;text-align:center;font-size:15px;color:#ccc;text-shadow: 1px 1px 6px rgba(0,0,0,0.9);}
+    #logoImg {position:absolute;top:16px;left:16px;width:60px;opacity:0.7;z-index:40;}
+    .final-screen {display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.95);justify-content:center;align-items:center;flex-direction:column;z-index:999;gap:12px;}
     #canvasPreview { display:none; }
-    .note { font-size:14px; color:#a0a0a0; margin-top:10px; text-shadow: 0 0 10px rgba(0,212,255,0.2); }
-    .download-container { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 10px; }
+    .note { font-size:13px; color:#bbb; margin-top:8px; }
+    .download-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px; }
     </style>
     </head>
     <body>
