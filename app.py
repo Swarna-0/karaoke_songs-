@@ -6,7 +6,7 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
-st.set_page_config(page_title="🎤 branks3.sing_along", layout="wide")
+st.set_page_config(page_title="🎙 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
 APP_URL = "https://karaoke-song.onrender.com/"
@@ -145,7 +145,7 @@ if st.session_state.page == "Login":
                 st.session_state.page = "User Dashboard"
                 st.rerun()
             else:
-                st.error("❌ తప్పు credentials!")
+                st.error("❌ wrong credentials!")
 
     with col2:
         st.subheader("👑 Admin Login")
@@ -158,7 +158,7 @@ if st.session_state.page == "Login":
                 st.session_state.page = "Admin Dashboard"
                 st.rerun()
             else:
-                st.error("❌ తప్పు admin credentials!")
+                st.error("❌ wrong admin credentials!")
 
     # 🔒 SECURITY NOTICE
     st.warning("🔒 **Security Notice**: Credentials are now managed via Environment Variables. Contact admin for access.")
@@ -260,7 +260,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
     st.title(f"👤 User Dashboard - {st.session_state.user}")
 
     st.subheader("Available Songs")
-    st.warning("❌ No songs available here. అడ్మిన్ నుండి share link పొందండి!")
+    st.warning("❌ No songs available here.")
 
     if st.session_state.get("selected_song"):
         direct = st.session_state.selected_song
@@ -358,10 +358,10 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     <div id="statusFinal" style="color:white;font-size:18px;">Done 🎧</div>
     <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
     <button id="playRecordingBtn">▶ Play Recording</button>
-    <a id="downloadRecordingBtn" download="karaoke_output.webm"><button>⬇ Download (webm)</button></a>
+    <a id="downloadRecordingBtn" download="karaoke_output.webm"><button>⬇ Download</button></a>
     <button id="newBtn">🔄 Create New</button>
     </div>
-    <div class="note">Tip: Recording playback stays on the same page.</div>
+    <div class="note">Recording playback stays on the same page.</div>
     </div>
     <canvas id="canvasPreview"></canvas>
     <script>
@@ -400,7 +400,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     mediaRecorder.onstop = async () => {
     mixedBlob = new Blob(recordedChunks, { type:'video/webm' }); const url = URL.createObjectURL(mixedBlob);
     finalPreviewImg.src = lyricsImg.src; downloadRecordingBtn.href = url; downloadRecordingBtn.setAttribute('download', `${Date.now()}_karaoke_output.webm`);
-    mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = '🎧 Ready';
+    mainScreen.style.display = 'none'; finalScreen.style.display = 'flex'; statusFinal.innerText = ;
     playRecordingBtn.onclick = () => {if (!mixedBlob) return; if (!isPlaying) {playRecordingAudio = new Audio(url); playRecordingAudio.play(); isPlaying = true; playRecordingBtn.innerText = "⏹ Stop"; playRecordingAudio.onended = () => {isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";};} else {playRecordingAudio.pause(); playRecordingAudio.currentTime = 0; isPlaying = false; playRecordingBtn.innerText = "▶ Play Recording";}};
     newBtn.onclick = () => {finalScreen.style.display = 'none'; mainScreen.style.display = 'flex'; status.innerText = "Ready 🎤"; playBtn.style.display = "inline-block"; playBtn.innerText = "▶ Play"; recordBtn.style.display = "inline-block"; stopBtn.style.display = "none"; if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio = null; isPlaying = false;} mixedBlob = null; recordedChunks = [];};
     };
