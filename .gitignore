@@ -1,2 +1,4 @@
 __pycache__/
 .env
+media/songs/*
+media/shared_links/*
