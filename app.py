@@ -92,15 +92,13 @@ def get_uploaded_songs(show_unshared=False):
                 songs.append(song_name)
     return sorted(songs)
 
-# ✅ FIXED SESSION PERSISTENCE - Initialize ONLY if not exists
+# Initialize session state
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
-if "selected_song" not in st.session_state:
-    st.session_state.selected_song = None
 
 metadata = load_metadata()
 
@@ -114,27 +112,99 @@ if not os.path.exists(default_logo_path):
         st.rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
-# =============== LOGIN PAGE - ONLY IF NOT LOGGED IN ===============
-if st.session_state.user is None or st.session_state.role is None:
+# =============== RESPONSIVE LOGIN PAGE ===============
+if st.session_state.page == "Login":
+
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-    body { background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%); }
-    .login-content { padding: 1.8rem 2.2rem 2.2rem 2.2rem; }
-    .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; margin-bottom: 1.6rem; text-align: center; }
-    .login-header img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); }
-    .login-title { font-size: 1.6rem; font-weight: 700; width: 100%; }
-    .login-sub { font-size: 0.9rem; color: #c3cfdd; margin-bottom: 0.5rem; width: 100%; }
-    .stTextInput input { background: rgba(5,10,25,0.7) !important; border-radius: 10px !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding: 12px 14px !important; }
-    .stTextInput input:focus { border-color: rgba(255,255,255,0.6) !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.3); }
-    .stButton button { width: 100%; height: 44px; background: linear-gradient(to right, #1f2937, #020712); border-radius: 10px; font-weight: 600; margin-top: 0.6rem; color: white; border: none; }
+
+    body {
+        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
+    }
+
+    /* INNER CONTENT PADDING - Reduced since box has padding now */
+    .login-content {
+        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
+    }
+
+    /* CENTERED HEADER SECTION */
+    .login-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.8rem; /* Slightly more gap */
+        margin-bottom: 1.6rem; /* More bottom margin */
+        text-align: center;
+    }
+
+    .login-header img {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.4);
+    }
+
+    .login-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        width: 100%;
+    }
+
+    .login-sub {
+        font-size: 0.9rem;
+        color: #c3cfdd;
+        margin-bottom: 0.5rem;
+        width: 100%;
+    }
+
+    /* CREDENTIALS INFO */
+    .credentials-info {
+        background: rgba(5,10,25,0.8);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 16px;
+        font-size: 0.85rem;
+        color: #b5c2d2;
+    }
+
+    /* INPUTS BLEND WITH BOX */
+    .stTextInput input {
+        background: rgba(5,10,25,0.7) !important;
+        border-radius: 10px !important;
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        padding: 12px 14px !important; /* Better input padding */
+    }
+
+    .stTextInput input:focus {
+        border-color: rgba(255,255,255,0.6) !important;
+        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+    }
+
+    .stButton button {
+        width: 100%;
+        height: 44px; /* Slightly taller */
+        background: linear-gradient(to right, #1f2937, #020712);
+        border-radius: 10px; /* Match input radius */
+        font-weight: 600;
+        margin-top: 0.6rem;
+        color: white;
+        border: none;
+    }
     </style>
     """, unsafe_allow_html=True)
 
+    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
+
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
+
+        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -174,10 +244,11 @@ if st.session_state.user is None or st.session_state.role is None:
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
-elif st.session_state.role == "admin":
+elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
 
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
@@ -211,7 +282,7 @@ elif st.session_state.role == "admin":
 
             metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
             save_metadata(metadata)
-            st.success(f"✅ Uploaded: *{song_name}*")
+            st.success(f"✅ Uploaded: {song_name}")
             st.rerun()
 
     elif page_sidebar == "Songs List":
@@ -225,7 +296,7 @@ elif st.session_state.role == "admin":
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"**{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
@@ -246,25 +317,25 @@ elif st.session_state.role == "admin":
             is_shared = song in shared_links_data
 
             with col1:
-                status = "✅ **SHARED**" if is_shared else "❌ **NOT SHARED**"
+                status = "✅ *SHARED" if is_shared else "❌ **NOT SHARED*"
                 st.write(f"{song} - {status}")
 
             with col2:
                 if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
-                        st.success(f"✅ **{song}** unshared! Users can no longer see this song.")
+                        st.success(f"✅ *{song}* unshared! Users can no longer see this song.")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
                         share_url = f"{APP_URL}?song={safe_song}"
-                        st.success(f"✅ **{song}** shared! Link: {share_url}")
+                        st.success(f"✅ *{song}* shared! Link: {share_url}")
                     st.rerun()
 
             with col3:
                 if is_shared:
                     if st.button("🚫 Unshare", key=f"unshare_{song}"):
                         delete_shared_link(song)
-                        st.success(f"✅ **{song}** unshared! Users cannot see this song anymore.")
+                        st.success(f"✅ *{song}* unshared! Users cannot see this song anymore.")
                         st.rerun()
 
             with col4:
@@ -273,15 +344,12 @@ elif st.session_state.role == "admin":
                     st.markdown(f"[📱 Open Link]({share_url})")
 
     if st.sidebar.button("🚪 Logout"):
-        # ✅ SAFE LOGOUT - Only clear user-related state
-        st.session_state.user = None
-        st.session_state.role = None
-        st.session_state.page = "Login"
-        st.session_state.selected_song = None
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
 # =============== USER DASHBOARD ===============
-elif st.session_state.role == "user":
+elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
     st.title(f"👤 User Dashboard - {st.session_state.user}")
 
     st.subheader("🎵 Available Songs (Only Shared Songs)")
@@ -294,7 +362,7 @@ elif st.session_state.role == "user":
         for song in uploaded_songs:
             col1, col2 = st.columns([3,1])
             with col1:
-                st.write(f"✅ **{song}** (Shared)")
+                st.write(f"✅ *{song}* (Shared)")
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
@@ -302,14 +370,13 @@ elif st.session_state.role == "user":
                     st.rerun()
 
     if st.button("🚪 Logout"):
-        st.session_state.user = None
-        st.session_state.role = None
-        st.session_state.page = "Login"
-        st.session_state.selected_song = None
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
 # =============== SONG PLAYER ===============
-elif st.session_state.page == "Song Player" and st.session_state.selected_song:
+elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
+
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display: none !important;}
@@ -317,12 +384,18 @@ elif st.session_state.page == "Song Player" and st.session_state.selected_song:
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container { padding: 0 !important; margin: 0 !important; width: 100vw !important; }
-    html, body { overflow: hidden !important; }
+    div.block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+    }
+    html, body {
+        overflow: hidden !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.selected_song
+    selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
         st.stop()
@@ -351,7 +424,7 @@ elif st.session_state.page == "Song Player" and st.session_state.selected_song:
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT KARAOKE TEMPLATE (unchanged)
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -382,9 +455,9 @@ canvas { display: none; }
     <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
     <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
     <div class="controls">
-      <button id="playBtn">▶️ Play</button>
-      <button id="recordBtn">🎙️ Record</button>
-      <button id="stopBtn" style="display:none;">⏹️ Stop</button>
+      <button id="playBtn">▶ Play</button>
+      <button id="recordBtn">🎙 Record</button>
+      <button id="stopBtn" style="display:none;">⏹ Stop</button>
     </div>
 </div>
 
@@ -394,9 +467,9 @@ canvas { display: none; }
     <div id="status"></div>
     <div class="lyrics" id="finalLyrics"></div>
     <div class="controls">
-      <button id="playRecordingBtn">▶️ Play Recording</button>
+      <button id="playRecordingBtn">▶ Play Recording</button>
       <a id="downloadRecordingBtn" href="#" download>
-        <button>⬇️ Download</button>
+        <button>⬇ Download</button>
       </a>
       <button id="newRecordingBtn">🔄 New Recording</button>
     </div>
@@ -438,11 +511,11 @@ playBtn.onclick = async () => {
         originalAudio.currentTime = 0; 
         await safePlay(originalAudio); 
         status.innerText = "🎵 Playing song..."; 
-        playBtn.innerText = "⏸️ Pause";
+        playBtn.innerText = "⏸ Pause";
     } else {
         originalAudio.pause();
-        status.innerText = "⏸️ Paused";
-        playBtn.innerText = "▶️ Play";
+        status.innerText = "⏸ Paused";
+        playBtn.innerText = "▶ Play";
     }
 };
 
@@ -481,6 +554,7 @@ recordBtn.onclick = async () => {
     accSource.start();
     userAccSource.start();
     
+    // ✅ PERFECT CANVAS RENDERING - EXACTLY LIKE DJANGO
     canvas.width = 1920;
     canvas.height = 1080;
     
@@ -488,9 +562,10 @@ recordBtn.onclick = async () => {
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
+        // Render main background image EXACTLY like reel-bg
         if (mainBg.complete && mainBg.naturalWidth > 0) {
             const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
-            let videoHeight = 0.85 * canvas.height;
+            let videoHeight = 0.85 * canvas.height; // 85vh
             let videoWidth = videoHeight * imgRatio;
             
             if (videoWidth > canvas.width) {
@@ -499,11 +574,12 @@ recordBtn.onclick = async () => {
             }
             
             const x = (canvas.width - videoWidth) / 2;
-            const y = 0;
+            const y = 0; // object-position: top
             
             ctx.drawImage(mainBg, x, y, videoWidth, videoHeight);
         }
         
+        // ✅ PERFECT LOGO POSITIONING - EXACTLY LIKE DJANGO
         if (logoImg.complete && logoImg.naturalWidth > 0) {
             ctx.globalAlpha = 0.6;
             ctx.drawImage(logoImg, 20, 20, 60, 60);
@@ -541,23 +617,23 @@ recordBtn.onclick = async () => {
         finalLyrics.innerText = "";
         finalDiv.style.display = "flex";
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
+        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
         
         playRecordingBtn.onclick = () => {
             if(!isPlayingRecording){
                 playRecordingAudio = new Audio(url);
                 playRecordingAudio.play();
                 isPlayingRecording=true;
-                playRecordingBtn.innerText="⏹️ Stop";
+                playRecordingBtn.innerText="⏹ Stop";
                 playRecordingAudio.onended=()=>{
                     isPlayingRecording=false; 
-                    playRecordingBtn.innerText="▶️ Play Recording"; 
+                    playRecordingBtn.innerText="▶ Play Recording"; 
                 };
             }else{
                 playRecordingAudio.pause(); 
                 playRecordingAudio.currentTime=0;
                 isPlayingRecording=false; 
-                playRecordingBtn.innerText="▶️ Play Recording";
+                playRecordingBtn.innerText="▶ Play Recording";
             }
         };
         
@@ -565,7 +641,7 @@ recordBtn.onclick = async () => {
             finalDiv.style.display = "none";
             status.innerText = "Ready 🎤";
             playBtn.style.display="inline-block";
-            playBtn.innerText = "▶️ Play";
+            playBtn.innerText = "▶ Play";
             recordBtn.style.display="inline-block";
             stopBtn.style.display="none";
             if(playRecordingAudio){
@@ -582,7 +658,7 @@ recordBtn.onclick = async () => {
     await safePlay(originalAudio); await safePlay(accompanimentAudio);
     
     playBtn.style.display="none"; recordBtn.style.display="none"; stopBtn.style.display="inline-block";
-    status.innerText="🎙️ Recording... (Mic + Music + Video)";
+    status.innerText="🎙 Recording... (Mic + Music + Video)";
 };
 
 stopBtn.onclick = () => {
@@ -593,7 +669,7 @@ stopBtn.onclick = () => {
         cancelAnimationFrame(canvasRafId);
     } catch(e) {}
     originalAudio.pause(); accompanimentAudio.pause();
-    status.innerText="⏹️ Processing video...";
+    status.innerText="⏹ Processing video...";
     stopBtn.style.display="none";
 };
 </script>
@@ -609,15 +685,7 @@ stopBtn.onclick = () => {
 
     html(karaoke_html, height=800, width=1920)
 
-# =============== BACK BUTTON PROTECTION ===============
+# =============== FALLBACK ===============
 else:
-    # If somehow session state is corrupted, redirect to appropriate dashboard
-    if st.session_state.user and st.session_state.role:
-        if st.session_state.role == "admin":
-            st.session_state.page = "Admin Dashboard"
-        else:
-            st.session_state.page = "User Dashboard"
-        st.rerun()
-    else:
-        st.session_state.page = "Login"
-        st.rerun()
+    st.session_state.page = "Login"
+    st.rerun()
