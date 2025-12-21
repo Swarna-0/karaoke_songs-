@@ -92,13 +92,15 @@ def get_uploaded_songs(show_unshared=False):
                 songs.append(song_name)
     return sorted(songs)
 
-# Initialize session state
+# ✅ FIXED SESSION PERSISTENCE - Initialize ONLY if not exists
 if "user" not in st.session_state:
     st.session_state.user = None
 if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
+if "selected_song" not in st.session_state:
+    st.session_state.selected_song = None
 
 metadata = load_metadata()
 
@@ -112,99 +114,27 @@ if not os.path.exists(default_logo_path):
         st.rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
-# =============== RESPONSIVE LOGIN PAGE ===============
-if st.session_state.page == "Login":
-
+# =============== LOGIN PAGE - ONLY IF NOT LOGGED IN ===============
+if st.session_state.user is None or st.session_state.role is None:
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-
-    body {
-        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
-    }
-
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
-    .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
-    }
-
-    /* CENTERED HEADER SECTION */
-    .login-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
-        text-align: center;
-    }
-
-    .login-header img {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.4);
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        width: 100%;
-    }
-
-    .login-sub {
-        font-size: 0.9rem;
-        color: #c3cfdd;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    /* CREDENTIALS INFO */
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    /* INPUTS BLEND WITH BOX */
-    .stTextInput input {
-        background: rgba(5,10,25,0.7) !important;
-        border-radius: 10px !important;
-        color: white !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
-    }
-
-    .stTextInput input:focus {
-        border-color: rgba(255,255,255,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    }
-
-    .stButton button {
-        width: 100%;
-        height: 44px; /* Slightly taller */
-        background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
-        font-weight: 600;
-        margin-top: 0.6rem;
-        color: white;
-        border: none;
-    }
+    body { background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%); }
+    .login-content { padding: 1.8rem 2.2rem 2.2rem 2.2rem; }
+    .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; margin-bottom: 1.6rem; text-align: center; }
+    .login-header img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); }
+    .login-title { font-size: 1.6rem; font-weight: 700; width: 100%; }
+    .login-sub { font-size: 0.9rem; color: #c3cfdd; margin-bottom: 0.5rem; width: 100%; }
+    .stTextInput input { background: rgba(5,10,25,0.7) !important; border-radius: 10px !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding: 12px 14px !important; }
+    .stTextInput input:focus { border-color: rgba(255,255,255,0.6) !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.3); }
+    .stButton button { width: 100%; height: 44px; background: linear-gradient(to right, #1f2937, #020712); border-radius: 10px; font-weight: 600; margin-top: 0.6rem; color: white; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
-
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -244,11 +174,10 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
-elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
+elif st.session_state.role == "admin":
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
 
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
@@ -344,12 +273,15 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     st.markdown(f"[📱 Open Link]({share_url})")
 
     if st.sidebar.button("🚪 Logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        # ✅ SAFE LOGOUT - Only clear user-related state
+        st.session_state.user = None
+        st.session_state.role = None
+        st.session_state.page = "Login"
+        st.session_state.selected_song = None
         st.rerun()
 
 # =============== USER DASHBOARD ===============
-elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
+elif st.session_state.role == "user":
     st.title(f"👤 User Dashboard - {st.session_state.user}")
 
     st.subheader("🎵 Available Songs (Only Shared Songs)")
@@ -370,13 +302,14 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                     st.rerun()
 
     if st.button("🚪 Logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        st.session_state.user = None
+        st.session_state.role = None
+        st.session_state.page = "Login"
+        st.session_state.selected_song = None
         st.rerun()
 
 # =============== SONG PLAYER ===============
-elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-
+elif st.session_state.page == "Song Player" and st.session_state.selected_song:
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display: none !important;}
@@ -384,18 +317,12 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container {
-        padding: 0 !important;
-        margin: 0 !important;
-        width: 100vw !important;
-    }
-    html, body {
-        overflow: hidden !important;
-    }
+    div.block-container { padding: 0 !important; margin: 0 !important; width: 100vw !important; }
+    html, body { overflow: hidden !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.get("selected_song", None)
+    selected_song = st.session_state.selected_song
     if not selected_song:
         st.error("No song selected!")
         st.stop()
@@ -424,7 +351,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # ✅ PERFECT KARAOKE TEMPLATE (unchanged)
     karaoke_template = """
 <!doctype html>
 <html>
@@ -554,7 +481,6 @@ recordBtn.onclick = async () => {
     accSource.start();
     userAccSource.start();
     
-    // ✅ PERFECT CANVAS RENDERING - EXACTLY LIKE DJANGO
     canvas.width = 1920;
     canvas.height = 1080;
     
@@ -562,10 +488,9 @@ recordBtn.onclick = async () => {
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Render main background image EXACTLY like reel-bg
         if (mainBg.complete && mainBg.naturalWidth > 0) {
             const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
-            let videoHeight = 0.85 * canvas.height; // 85vh
+            let videoHeight = 0.85 * canvas.height;
             let videoWidth = videoHeight * imgRatio;
             
             if (videoWidth > canvas.width) {
@@ -574,12 +499,11 @@ recordBtn.onclick = async () => {
             }
             
             const x = (canvas.width - videoWidth) / 2;
-            const y = 0; // object-position: top
+            const y = 0;
             
             ctx.drawImage(mainBg, x, y, videoWidth, videoHeight);
         }
         
-        // ✅ PERFECT LOGO POSITIONING - EXACTLY LIKE DJANGO
         if (logoImg.complete && logoImg.naturalWidth > 0) {
             ctx.globalAlpha = 0.6;
             ctx.drawImage(logoImg, 20, 20, 60, 60);
@@ -685,7 +609,15 @@ stopBtn.onclick = () => {
 
     html(karaoke_html, height=800, width=1920)
 
-# =============== FALLBACK ===============
+# =============== BACK BUTTON PROTECTION ===============
 else:
-    st.session_state.page = "Login"
-    st.rerun()
+    # If somehow session state is corrupted, redirect to appropriate dashboard
+    if st.session_state.user and st.session_state.role:
+        if st.session_state.role == "admin":
+            st.session_state.page = "Admin Dashboard"
+        else:
+            st.session_state.page = "User Dashboard"
+        st.rerun()
+    else:
+        st.session_state.page = "Login"
+        st.rerun()
