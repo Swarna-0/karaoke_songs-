@@ -433,12 +433,59 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
   <title>🎤 Karaoke Reels</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
-.reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
+body {
+    background: #000;
+    font-family: 'Poppins', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* MAIN 9:16 FRAME */
+.reel-container,
+.final-reel-container {
+    width: 360px;
+    height: 640px;        /* 9:16 */
+    max-height: 100vh;
+    aspect-ratio: 9 / 16;
+    position: relative;
+    background: #111;
+    overflow: hidden;
+}
+
+/* BACKGROUND IMAGE */
+.reel-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 75%;
+    object-fit: contain;
+    object-position: top;
+}
+
 #status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
-.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
-.lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
-.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
+
+.controls {
+    position: absolute;
+    bottom: 12%;
+    width: 100%;
+    text-align: center;
+    z-index: 30;
+}
+
+.lyrics {
+    position: absolute;
+    bottom: 28%;
+    width: 100%;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+}
+
 button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
 button:active { transform: scale(0.95); }
 .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
@@ -476,7 +523,7 @@ canvas { display: none; }
   </div>
 </div>
 
-<canvas id="recordingCanvas" width="1920" height="1080"></canvas>
+<canvas id="recordingCanvas" width="1080" height="1920"></canvas>
 
 <script>
 /* ================== GLOBAL STATE ================== */
@@ -610,8 +657,8 @@ recordBtn.onclick = async () => {
 
     accSource.start();
 
-    canvas.width = 1920;
-    canvas.height = 1080;
+    canvas.width = 1080;
+    canvas.height = 1920;
     drawCanvas();
 
     const stream = new MediaStream([
