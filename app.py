@@ -479,16 +479,18 @@ canvas { display: none; }
 <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
 
 <script>
+/* ================== GLOBAL STATE ================== */
 let mediaRecorder;
 let recordedChunks = [];
 let playRecordingAudio = null;
 let lastRecordingURL = null;
 
-let audioContext, micSource, accSource, canvasRafId;
+let audioContext, micSource, accSource;
+let canvasRafId = null;
 let isRecording = false;
 let isPlayingRecording = false;
 
-/* ELEMENTS */
+/* ================== ELEMENTS ================== */
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
 const stopBtn = document.getElementById("stopBtn");
@@ -500,6 +502,7 @@ const accompanimentAudio = document.getElementById("accompaniment");
 const finalDiv = document.getElementById("finalOutputDiv");
 const mainBg = document.getElementById("mainBg");
 const finalBg = document.getElementById("finalBg");
+
 const playRecordingBtn = document.getElementById("playRecordingBtn");
 const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
 const newRecordingBtn = document.getElementById("newRecordingBtn");
@@ -510,7 +513,7 @@ const ctx = canvas.getContext("2d");
 const logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
 
-/* AUDIO CONTEXT FIX */
+/* ================== AUDIO CONTEXT FIX ================== */
 async function ensureAudioContext() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -525,17 +528,15 @@ async function safePlay(audio) {
         await ensureAudioContext();
         await audio.play();
     } catch (e) {
-        console.log("Autoplay blocked", e);
+        console.log("Autoplay blocked:", e);
     }
 }
 
 document.addEventListener("visibilitychange", async () => {
-    if (!document.hidden) {
-        await ensureAudioContext();
-    }
+    if (!document.hidden) await ensureAudioContext();
 });
 
-/* PLAY ORIGINAL */
+/* ================== PLAY ORIGINAL ================== */
 playBtn.onclick = async () => {
     await ensureAudioContext();
     if (originalAudio.paused) {
@@ -550,7 +551,40 @@ playBtn.onclick = async () => {
     }
 };
 
-/* RECORD */
+/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
+function drawCanvas() {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const canvasW = canvas.width;
+    const canvasH = canvas.height * 0.85;
+
+    const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
+    const canvasRatio = canvasW / canvasH;
+
+    let drawW, drawH;
+    if (imgRatio > canvasRatio) {
+        drawW = canvasW;
+        drawH = canvasW / imgRatio;
+    } else {
+        drawH = canvasH;
+        drawW = canvasH * imgRatio;
+    }
+
+    const x = (canvasW - drawW) / 2;
+    const y = 0; // TOP aligned
+
+    ctx.drawImage(mainBg, x, y, drawW, drawH);
+
+    /* LOGO — exact Django feel */
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(logoImg, 20, 20, 60, 60);
+    ctx.globalAlpha = 1;
+
+    canvasRafId = requestAnimationFrame(drawCanvas);
+}
+
+/* ================== RECORD ================== */
 recordBtn.onclick = async () => {
     if (isRecording) return;
     isRecording = true;
@@ -558,12 +592,14 @@ recordBtn.onclick = async () => {
     await ensureAudioContext();
     recordedChunks = [];
 
+    /* MIC */
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micSource = audioContext.createMediaStreamSource(micStream);
 
-    const accResponse = await fetch(accompanimentAudio.src);
-    const accBuffer = await accResponse.arrayBuffer();
-    const accDecoded = await audioContext.decodeAudioData(accBuffer);
+    /* ACCOMPANIMENT */
+    const accRes = await fetch(accompanimentAudio.src);
+    const accBuf = await accRes.arrayBuffer();
+    const accDecoded = await audioContext.decodeAudioData(accBuf);
 
     accSource = audioContext.createBufferSource();
     accSource.buffer = accDecoded;
@@ -576,44 +612,7 @@ recordBtn.onclick = async () => {
 
     canvas.width = 1920;
     canvas.height = 1080;
-
-    function drawCanvas() {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    /* ===== IMAGE: SAME AS CSS object-fit: contain + top ===== */
-    const img = mainBg;
-
-    const canvasW = canvas.width;
-    const canvasH = canvas.height * 0.85;
-
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const canvasRatio = canvasW / canvasH;
-
-    let drawW, drawH;
-
-    if (imgRatio > canvasRatio) {
-        drawW = canvasW;
-        drawH = canvasW / imgRatio;
-    } else {
-        drawH = canvasH;
-        drawW = canvasH * imgRatio;
-    }
-
-    const x = (canvasW - drawW) / 2;
-    const y = 0; // TOP aligned (IMPORTANT)
-
-    ctx.drawImage(img, x, y, drawW, drawH);
-
-    /* ===== LOGO: RESPONSIVE LIKE DJANGO ===== */
-    const logoSize = canvas.width * 0.04; // ~4% width
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(logoImg, 20, 20, logoSize, logoSize);
-    ctx.globalAlpha = 1;
-
-    canvasRafId = requestAnimationFrame(drawCanvas);
-}
-
+    drawCanvas();
 
     const stream = new MediaStream([
         ...canvas.captureStream(30).getTracks(),
@@ -624,6 +623,8 @@ recordBtn.onclick = async () => {
     mediaRecorder.ondataavailable = e => e.data.size && recordedChunks.push(e.data);
 
     mediaRecorder.onstop = () => {
+        cancelAnimationFrame(canvasRafId);
+
         const blob = new Blob(recordedChunks, { type: "video/webm" });
         const url = URL.createObjectURL(blob);
 
@@ -642,43 +643,10 @@ recordBtn.onclick = async () => {
                 playRecordingAudio.play();
                 playRecordingBtn.innerText = "⏹ Stop";
                 isPlayingRecording = true;
-
-                playRecordingAudio.onended = () => {
-                    playRecordingBtn.innerText = "▶ Play Recording";
-                    isPlayingRecording = false;
-                };
+                playRecordingAudio.onended = resetPlayBtn;
             } else {
-                playRecordingAudio.pause();
-                playRecordingAudio.currentTime = 0;
-                playRecordingBtn.innerText = "▶ Play Recording";
-                isPlayingRecording = false;
+                resetPlayBtn();
             }
-        };
-
-        /* NEW RECORDING */
-        newRecordingBtn.onclick = () => {
-            finalDiv.style.display = "none";
-
-            isRecording = false;
-            isPlayingRecording = false;
-            recordedChunks = [];
-
-            originalAudio.pause();
-            accompanimentAudio.pause();
-            originalAudio.currentTime = 0;
-            accompanimentAudio.currentTime = 0;
-
-            if (playRecordingAudio) {
-                playRecordingAudio.pause();
-                playRecordingAudio = null;
-            }
-
-            playBtn.style.display = "inline-block";
-            recordBtn.style.display = "inline-block";
-            stopBtn.style.display = "none";
-            playBtn.innerText = "▶ Play";
-
-            status.innerText = "Ready 🎤";
         };
     };
 
@@ -695,7 +663,7 @@ recordBtn.onclick = async () => {
     status.innerText = "🎙 Recording...";
 };
 
-/* STOP */
+/* ================== STOP ================== */
 stopBtn.onclick = () => {
     if (!isRecording) return;
     isRecording = false;
@@ -703,13 +671,46 @@ stopBtn.onclick = () => {
     try { mediaRecorder.stop(); } catch {}
     try { accSource.stop(); } catch {}
 
-    cancelAnimationFrame(canvasRafId);
-
     originalAudio.pause();
     accompanimentAudio.pause();
 
     stopBtn.style.display = "none";
     status.innerText = "⏹ Processing...";
+};
+
+/* ================== HELPERS ================== */
+function resetPlayBtn() {
+    if (playRecordingAudio) {
+        playRecordingAudio.pause();
+        playRecordingAudio.currentTime = 0;
+    }
+    playRecordingBtn.innerText = "▶ Play Recording";
+    isPlayingRecording = false;
+}
+
+/* ================== NEW RECORDING ================== */
+newRecordingBtn.onclick = () => {
+    finalDiv.style.display = "none";
+
+    recordedChunks = [];
+    isRecording = false;
+    isPlayingRecording = false;
+
+    originalAudio.pause();
+    accompanimentAudio.pause();
+    originalAudio.currentTime = 0;
+    accompanimentAudio.currentTime = 0;
+
+    if (playRecordingAudio) {
+        playRecordingAudio.pause();
+        playRecordingAudio = null;
+    }
+
+    playBtn.style.display = "inline-block";
+    recordBtn.style.display = "inline-block";
+    stopBtn.style.display = "none";
+    playBtn.innerText = "▶ Play";
+    status.innerText = "Ready 🎤";
 };
 </script>
 
