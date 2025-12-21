@@ -424,7 +424,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ FIXED KARAOKE TEMPLATE - ALL 3 ISSUES SOLVED
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -476,11 +476,11 @@ canvas { display: none; }
   </div>
 </div>
 
-<canvas id="recordingCanvas" width="1280" height="720"></canvas>
+<canvas id="recordingCanvas" width="1920" height="1080"></canvas>
 
 <script>
 let mediaRecorder, recordedChunks = [], playRecordingAudio = null, isPlayingRecording = false;
-let audioContext, micSource, accSource, canvasRafId;
+let audioContext, micSource, accSource, canvasRafId, logoImg;
 
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
@@ -498,11 +498,14 @@ const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext('2d');
 
+// Preload logo for canvas
+logoImg = new Image();
+logoImg.src = document.getElementById("logoImg").src;
+
 async function safePlay(audio){ 
     try{ await audio.play(); }catch(e){console.log("Autoplay blocked:", e);} 
 }
 
-// ✅ FIX 1: Play button now toggles Pause/Play
 playBtn.onclick = async () => { 
     if (originalAudio.paused) {
         originalAudio.currentTime = 0; 
@@ -516,21 +519,17 @@ playBtn.onclick = async () => {
     }
 };
 
-// ✅ FIX 2: Records MIC + ACCOMPANIMENT + VIDEO WITH IMAGE
 recordBtn.onclick = async () => {
     recordedChunks = [];
     
-    // Get mic + create canvas video
     let micStream = await navigator.mediaDevices.getUserMedia({ 
         audio: { echoCancellation: true, noiseSuppression: true },
         video: false 
     });
     
-    // Setup Web Audio API for mixing mic + accompaniment
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     micSource = audioContext.createMediaStreamSource(micStream);
     
-    // Load accompaniment audio for mixing
     const accResponse = await fetch(accompanimentAudio.src);
     const accBuffer = await accResponse.arrayBuffer();
     const accDecoded = await audioContext.decodeAudioData(accBuffer);
@@ -538,7 +537,6 @@ recordBtn.onclick = async () => {
     accSource = audioContext.createBufferSource();
     accSource.buffer = accDecoded;
     
-    // Create output streams
     const destination = audioContext.createMediaStreamDestination();
     const micGain = audioContext.createGain();
     const accGain = audioContext.createGain();
@@ -549,46 +547,56 @@ recordBtn.onclick = async () => {
     micSource.connect(micGain).connect(destination);
     accSource.connect(accGain).connect(destination);
     
-    // Play accompaniment for user hearing
     const userAccSource = audioContext.createBufferSource();
     userAccSource.buffer = accDecoded;
     userAccSource.connect(audioContext.destination);
     
-    // Start audio sources
     accSource.start();
     userAccSource.start();
     
-    // ✅ Canvas animation for video recording
-    const img = mainBg;
-    canvas.width = 1280;
-    canvas.height = 720;
+    // ✅ PERFECT CANVAS RENDERING - EXACTLY LIKE DJANGO
+    canvas.width = 1920;
+    canvas.height = 1080;
     
     function animateCanvas() {
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        if (img.complete && img.naturalWidth > 0) {
-            const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
-            const w = img.naturalWidth * scale;
-            const h = img.naturalHeight * scale;
-            const x = (canvas.width - w) / 2;
-            const y = (canvas.height - h) / 2;
-            ctx.drawImage(img, x, y, w, h);
+        // Render main background image EXACTLY like reel-bg
+        if (mainBg.complete && mainBg.naturalWidth > 0) {
+            const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
+            let videoHeight = 0.85 * canvas.height; // 85vh
+            let videoWidth = videoHeight * imgRatio;
+            
+            if (videoWidth > canvas.width) {
+                videoWidth = canvas.width;
+                videoHeight = videoWidth / imgRatio;
+            }
+            
+            const x = (canvas.width - videoWidth) / 2;
+            const y = 0; // object-position: top
+            
+            ctx.drawImage(mainBg, x, y, videoWidth, videoHeight);
+        }
+        
+        // ✅ PERFECT LOGO POSITIONING - EXACTLY LIKE DJANGO
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(logoImg, 20, 20, 60, 60);
+            ctx.globalAlpha = 1.0;
         }
         
         canvasRafId = requestAnimationFrame(animateCanvas);
     }
     animateCanvas();
     
-    const canvasStream = canvas.captureStream(25); // 25 FPS
+    const canvasStream = canvas.captureStream(30);
     const mixedAudioStream = destination.stream;
     
-    // Combine video + audio streams
     const combinedStream = new MediaStream();
     canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
     mixedAudioStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
     
-    // ✅ FIX 3: Record as MP4 video
     try {
         mediaRecorder = new MediaRecorder(combinedStream, { 
             mimeType: 'video/webm;codecs=vp9,opus' 
@@ -611,7 +619,6 @@ recordBtn.onclick = async () => {
         downloadRecordingBtn.href = url;
         downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
         
-        // Play recording functionality
         playRecordingBtn.onclick = () => {
             if(!isPlayingRecording){
                 playRecordingAudio = new Audio(url);
@@ -645,7 +652,6 @@ recordBtn.onclick = async () => {
         };
     };
     
-    // Start recording
     await new Promise(res=>setTimeout(res,150));
     mediaRecorder.start();
     originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
