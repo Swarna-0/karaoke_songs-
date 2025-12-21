@@ -436,31 +436,9 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
 body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
 .reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
 #status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
-.reel-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  object-fit: contain;
-  background: black;
-}
-
+.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
 .lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
-.controls {
-  position: absolute;
-  bottom: 6vh;
-  width: 100%;
-  text-align: center;
-  z-index: 30;
-}
-
-#status {
-  position: absolute;
-  top: 2vh;
-  width: 100%;
-  text-align: center;
-}
+.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
 button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
 button:active { transform: scale(0.95); }
 .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
@@ -746,8 +724,7 @@ newRecordingBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-    html(karaoke_html, height=1080, width=1920)
-
+    html(karaoke_html, height=800, width=1920)
 
 # =============== FALLBACK ===============
 else:
