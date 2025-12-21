@@ -597,9 +597,8 @@ recordBtn.onclick = async () => {
     micSource = audioContext.createMediaStreamSource(micStream);
 
     /* ACCOMPANIMENT */
-    const accBlob = await (await fetch(accompanimentAudio.src)).blob();
-    const accArrayBuffer = await accBlob.arrayBuffer();
-
+    const accRes = await fetch(accompanimentAudio.src);
+    const accBuf = await accRes.arrayBuffer();
     const accDecoded = await audioContext.decodeAudioData(accBuf);
 
     accSource = audioContext.createBufferSource();
@@ -611,8 +610,8 @@ recordBtn.onclick = async () => {
 
     accSource.start();
 
-    canvas.width = 1280;
-    canvas.height = 720;
+    canvas.width = 1920;
+    canvas.height = 1080;
     drawCanvas();
 
     const stream = new MediaStream([
@@ -725,7 +724,7 @@ newRecordingBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-    html(karaoke_html, height=1080, width=1920)
+    html(karaoke_html, height=800, width=1920)
 
 # =============== FALLBACK ===============
 else:
