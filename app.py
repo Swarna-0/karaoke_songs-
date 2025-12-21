@@ -121,10 +121,8 @@ logo_b64 = file_to_base64(default_logo_path)
 # Navigation function
 def navigate_to(page, save_history=True):
     if save_history:
-        # Save current page to history
         current_page = st.session_state.get("page", "Login")
         if st.session_state.navigation_history and st.session_state.history_index < len(st.session_state.navigation_history) - 1:
-            # Truncate forward history when navigating forward
             st.session_state.navigation_history = st.session_state.navigation_history[:st.session_state.history_index + 1]
         st.session_state.navigation_history.append(current_page)
         st.session_state.history_index += 1
@@ -137,10 +135,15 @@ def go_back():
         st.session_state.history_index -= 1
         prev_page = st.session_state.navigation_history[st.session_state.history_index]
         st.session_state.page = prev_page
-        st.session_state.previous_page = st.session_state.navigation_history[st.session_state.history_index - 1] if st.session_state.history_index > 0 else "Login"
         st.rerun()
     else:
         st.session_state.page = "Login"
+        st.rerun()
+
+def go_forward():
+    if st.session_state.history_index < len(st.session_state.navigation_history) - 1:
+        st.session_state.history_index += 1
+        st.session_state.page = st.session_state.navigation_history[st.session_state.history_index]
         st.rerun()
 
 # =============== RESPONSIVE LOGIN PAGE ===============
@@ -150,92 +153,21 @@ if st.session_state.page == "Login":
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-
-    body {
-        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
-    }
-
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
-    .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
-    }
-
-    /* CENTERED HEADER SECTION */
-    .login-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
-        text-align: center;
-    }
-
-    .login-header img {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.4);
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        width: 100%;
-    }
-
-    .login-sub {
-        font-size: 0.9rem;
-        color: #c3cfdd;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    /* CREDENTIALS INFO */
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    /* INPUTS BLEND WITH BOX */
-    .stTextInput input {
-        background: rgba(5,10,25,0.7) !important;
-        border-radius: 10px !important;
-        color: white !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
-    }
-
-    .stTextInput input:focus {
-        border-color: rgba(255,255,255,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    }
-
-    .stButton button {
-        width: 100%;
-        height: 44px; /* Slightly taller */
-        background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
-        font-weight: 600;
-        margin-top: 0.6rem;
-        color: white;
-        border: none;
-    }
+    body { background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%); }
+    .login-content { padding: 1.8rem 2.2rem 2.2rem 2.2rem; }
+    .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; margin-bottom: 1.6rem; text-align: center; }
+    .login-header img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); }
+    .login-title { font-size: 1.6rem; font-weight: 700; width: 100%; }
+    .login-sub { font-size: 0.9rem; color: #c3cfdd; margin-bottom: 0.5rem; width: 100%; }
+    .stTextInput input { background: rgba(5,10,25,0.7) !important; border-radius: 10px !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding: 12px 14px !important; }
+    .stTextInput input:focus { border-color: rgba(255,255,255,0.6) !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.3); }
+    .stButton button { width: 100%; height: 44px; background: linear-gradient(to right, #1f2937, #020712); border-radius: 10px; font-weight: 600; margin-top: 0.6rem; color: white; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
-
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -256,14 +188,17 @@ if st.session_state.page == "Login":
                     st.session_state.user = username
                     st.session_state.role = "admin"
                     navigate_to("Admin Dashboard")
+                    st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     navigate_to("User Dashboard")
+                    st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     navigate_to("User Dashboard")
+                    st.rerun()
                 else:
                     st.error("❌ Invalid credentials")
 
@@ -272,8 +207,7 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
@@ -282,19 +216,20 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
     .nav-buttons { position: fixed; top: 10px; left: 10px; z-index: 1000; display: flex; gap: 5px; }
     .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 8px 12px !important; font-size: 14px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 2px 10px rgba(102,126,234,0.4) !important; }
     .nav-btn:hover { transform: scale(1.05) !important; }
+    .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
     </style>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 8, 1])
     with col1:
         st.markdown('<div class="nav-buttons">', unsafe_allow_html=True)
-        if st.button("⬅ Back", key="admin_back"):
-            go_back()
-        if st.button("➡️ Forward", key="admin_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
-            if st.session_state.history_index < len(st.session_state.navigation_history)-1:
-                st.session_state.history_index += 1
-                st.session_state.page = st.session_state.navigation_history[st.session_state.history_index]
-                st.rerun()
+        col_back, col_forward = st.columns([1,1])
+        with col_back:
+            if st.button("⬅ Back", key="admin_back"):
+                go_back()
+        with col_forward:
+            if st.button("➡️ Forward", key="admin_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
+                go_forward()
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
@@ -349,6 +284,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
                         navigate_to("Song Player")
+                        st.rerun()
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
                     st.markdown(f"[🔗 Share Link]({share_url})")
@@ -402,19 +338,20 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
     .nav-buttons { position: fixed; top: 10px; left: 10px; z-index: 1000; display: flex; gap: 5px; }
     .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 8px 12px !important; font-size: 14px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 2px 10px rgba(102,126,234,0.4) !important; }
     .nav-btn:hover { transform: scale(1.05) !important; }
+    .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
     </style>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 8, 1])
     with col1:
         st.markdown('<div class="nav-buttons">', unsafe_allow_html=True)
-        if st.button("⬅ Back", key="user_back"):
-            go_back()
-        if st.button("➡️ Forward", key="user_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
-            if st.session_state.history_index < len(st.session_state.navigation_history)-1:
-                st.session_state.history_index += 1
-                st.session_state.page = st.session_state.navigation_history[st.session_state.history_index]
-                st.rerun()
+        col_back, col_forward = st.columns([1,1])
+        with col_back:
+            if st.button("⬅ Back", key="user_back"):
+                go_back()
+        with col_forward:
+            if st.button("➡️ Forward", key="user_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
+                go_forward()
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.title(f"👤 User Dashboard - {st.session_state.user}")
@@ -434,6 +371,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
                     navigate_to("Song Player")
+                    st.rerun()
 
     if st.button("🚪 Logout"):
         for key in list(st.session_state.keys()):
@@ -450,15 +388,9 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container {
-        padding: 0 !important;
-        margin: 0 !important;
-        width: 100vw !important;
-    }
-    html, body {
-        overflow: hidden !important;
-    }
-    .top-nav { position: fixed; top: 10px; left: 10px; z-index: 10000; display: flex; gap: 5px; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 25px; }
+    div.block-container { padding: 0 !important; margin: 0 !important; width: 100vw !important; }
+    html, body { overflow: hidden !important; }
+    .top-nav { position: fixed; top: 10px; left: 10px; z-index: 10000; display: flex; gap: 5px; background: rgba(0,0,0,0.9); padding: 8px; border-radius: 25px; }
     .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 10px 15px !important; font-size: 16px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 3px 15px rgba(102,126,234,0.5) !important; cursor: pointer !important; }
     .nav-btn:hover { transform: scale(1.05) !important; }
     .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
@@ -480,13 +412,13 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
 
-    # TOP NAVIGATION BAR - Fixed position, works on all devices
-    st.markdown("""
-    <div class="top-nav">
-        <button class="nav-btn" onclick="window.parent.postMessage({type: 'GO_BACK'}, '*')">⬅ Back</button>
-        <button class="nav-btn" onclick="window.parent.postMessage({type: 'GO_FORWARD'}, '*')" id="forwardBtn">➡️ Forward</button>
-    </div>
-    """, unsafe_allow_html=True)
+    # TOP NAVIGATION BAR
+    col1, col2 = st.columns([1,10])
+    with col1:
+        if st.button("⬅ Back", key="player_back"):
+            go_back()
+        if st.button("➡️ Forward", key="player_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
+            go_forward()
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
@@ -502,43 +434,36 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    karaoke_template = f"""
+    # FIXED KARAOKE TEMPLATE - No f-string issues
+    karaoke_template = """
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>🎤 Karaoke Reels</title>
 <style>
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }}
-.reel-container, .final-reel-container {{ width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }}
-#status {{ position: absolute; top: 60px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }}
-.reel-bg {{ position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }}
-.lyrics {{ position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }}
-.controls {{ position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }}
-button {{ background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }}
-button:active {{ transform: scale(0.95); }}
-.final-output {{ position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }}
-#logoImg {{ position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }}
-.top-nav {{ position: fixed; top: 10px; left: 10px; z-index: 10000; display: flex; gap: 5px; background: rgba(0,0,0,0.9); padding: 8px; border-radius: 25px; }}
-.nav-btn {{ background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 10px 15px !important; font-size: 16px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 3px 15px rgba(102,126,234,0.5) !important; cursor: pointer !important; }}
-.nav-btn:hover {{ transform: scale(1.05) !important; }}
-canvas {{ display: none; }}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
+.reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
+#status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
+.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
+.lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
+.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
+button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
+button:active { transform: scale(0.95); }
+.final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
+#logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
+canvas { display: none; }
 </style>
 </head>
 <body>
 
-<div class="top-nav">
-    <button class="nav-btn" onclick="goBack()">⬅ Back</button>
-    <button class="nav-btn" onclick="goForward()" id="forwardBtn">➡️ Forward</button>
-</div>
-
 <div class="reel-container" id="reelContainer">
-    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,{lyrics_b64}">
-    <img id="logoImg" src="data:image/png;base64,{logo_b64}">
+    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%s">
+    <img id="logoImg" src="data:image/png;base64,%s">
     <div id="status">Ready 🎤</div>
-    <audio id="originalAudio" src="data:audio/mp3;base64,{original_b64}"></audio>
-    <audio id="accompaniment" src="data:audio/mp3;base64,{accompaniment_b64}"></audio>
+    <audio id="originalAudio" src="data:audio/mp3;base64,%s"></audio>
+    <audio id="accompaniment" src="data:audio/mp3;base64,%s"></audio>
     <div class="controls">
       <button id="playBtn">▶ Play</button>
       <button id="recordBtn">🎙 Record</button>
@@ -566,7 +491,6 @@ canvas {{ display: none; }}
 <script>
 let mediaRecorder, recordedChunks = [], playRecordingAudio = null, isPlayingRecording = false;
 let audioContext, micSource, accSource, canvasRafId, logoImg;
-let canGoForward = {0};
 
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
@@ -583,50 +507,184 @@ const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
 const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext('2d');
-const forwardBtn = document.getElementById("forwardBtn");
-
-// Navigation functions
-function goBack() {{ window.parent.postMessage({{type: 'GO_BACK'}}, '*'); }}
-function goForward() {{ window.parent.postMessage({{type: 'GO_FORWARD'}}, '*'); }}
 
 // Preload logo for canvas
 logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
 
 async function safePlay(audio){ 
-    try{{ await audio.play(); }}catch(e){{console.log("Autoplay blocked:", e);}} 
+    try{ await audio.play(); }catch(e){console.log("Autoplay blocked:", e);} 
 }
 
-// Listen for messages from parent
-window.addEventListener('message', function(event) {{
-    if (event.data.type === 'CAN_GO_FORWARD') {{
-        canGoForward = event.data.canForward;
-        forwardBtn.disabled = !canGoForward;
-    }}
-}});
+playBtn.onclick = async () => { 
+    if (originalAudio.paused) {
+        originalAudio.currentTime = 0; 
+        await safePlay(originalAudio); 
+        status.innerText = "🎵 Playing song..."; 
+        playBtn.innerText = "⏸ Pause";
+    } else {
+        originalAudio.pause();
+        status.innerText = "⏸ Paused";
+        playBtn.innerText = "▶ Play";
+    }
+};
 
-{playBtn code}
-{recordBtn code}
-{stopBtn code}
+recordBtn.onclick = async () => {
+    recordedChunks = [];
+    
+    let micStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false 
+    });
+    
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    micSource = audioContext.createMediaStreamSource(micStream);
+    
+    const accResponse = await fetch(accompanimentAudio.src);
+    const accBuffer = await accResponse.arrayBuffer();
+    const accDecoded = await audioContext.decodeAudioData(accBuffer);
+    
+    accSource = audioContext.createBufferSource();
+    accSource.buffer = accDecoded;
+    
+    const destination = audioContext.createMediaStreamDestination();
+    const micGain = audioContext.createGain();
+    const accGain = audioContext.createGain();
+    
+    micGain.gain.value = 1.0;
+    accGain.gain.value = 0.7;
+    
+    micSource.connect(micGain).connect(destination);
+    accSource.connect(accGain).connect(destination);
+    
+    const userAccSource = audioContext.createBufferSource();
+    userAccSource.buffer = accDecoded;
+    userAccSource.connect(audioContext.destination);
+    
+    accSource.start();
+    userAccSource.start();
+    
+    canvas.width = 1920;
+    canvas.height = 1080;
+    
+    function animateCanvas() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (mainBg.complete && mainBg.naturalWidth > 0) {
+            const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
+            let videoHeight = 0.85 * canvas.height;
+            let videoWidth = videoHeight * imgRatio;
+            
+            if (videoWidth > canvas.width) {
+                videoWidth = canvas.width;
+                videoHeight = videoWidth / imgRatio;
+            }
+            
+            const x = (canvas.width - videoWidth) / 2;
+            const y = 0;
+            
+            ctx.drawImage(mainBg, x, y, videoWidth, videoHeight);
+        }
+        
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(logoImg, 20, 20, 60, 60);
+            ctx.globalAlpha = 1.0;
+        }
+        
+        canvasRafId = requestAnimationFrame(animateCanvas);
+    }
+    animateCanvas();
+    
+    const canvasStream = canvas.captureStream(30);
+    const mixedAudioStream = destination.stream;
+    
+    const combinedStream = new MediaStream();
+    canvasStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
+    mixedAudioStream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
+    
+    try {
+        mediaRecorder = new MediaRecorder(combinedStream, { 
+            mimeType: 'video/webm;codecs=vp9,opus' 
+        });
+    } catch(e) {
+        mediaRecorder = new MediaRecorder(combinedStream);
+    }
+    
+    mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+    
+    mediaRecorder.onstop = async () => {
+        const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(videoBlob);
+        
+        finalBg.src = mainBg.src;
+        finalLyrics.innerText = "";
+        finalDiv.style.display = "flex";
+        downloadRecordingBtn.href = url;
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
+        
+        playRecordingBtn.onclick = () => {
+            if(!isPlayingRecording){
+                playRecordingAudio = new Audio(url);
+                playRecordingAudio.play();
+                isPlayingRecording=true;
+                playRecordingBtn.innerText="⏹ Stop";
+                playRecordingAudio.onended=()=>{
+                    isPlayingRecording=false; 
+                    playRecordingBtn.innerText="▶ Play Recording"; 
+                };
+            }else{
+                playRecordingAudio.pause(); 
+                playRecordingAudio.currentTime=0;
+                isPlayingRecording=false; 
+                playRecordingBtn.innerText="▶ Play Recording";
+            }
+        };
+        
+        newRecordingBtn.onclick = () => {
+            finalDiv.style.display = "none";
+            status.innerText = "Ready 🎤";
+            playBtn.style.display="inline-block";
+            playBtn.innerText = "▶ Play";
+            recordBtn.style.display="inline-block";
+            stopBtn.style.display="none";
+            if(playRecordingAudio){
+                playRecordingAudio.pause();
+                playRecordingAudio = null;
+            }
+            recordedChunks = [];
+        };
+    };
+    
+    await new Promise(res=>setTimeout(res,150));
+    mediaRecorder.start();
+    originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
+    await safePlay(originalAudio); await safePlay(accompanimentAudio);
+    
+    playBtn.style.display="none"; recordBtn.style.display="none"; stopBtn.style.display="inline-block";
+    status.innerText="🎙 Recording... (Mic + Music + Video)";
+};
+
+stopBtn.onclick = () => {
+    try{ mediaRecorder.stop(); }catch(e){}
+    try {
+        accSource.stop();
+        audioContext.close();
+        cancelAnimationFrame(canvasRafId);
+    } catch(e) {}
+    originalAudio.pause(); accompanimentAudio.pause();
+    status.innerText="⏹ Processing video...";
+    stopBtn.style.display="none";
+};
 </script>
 </body>
 </html>
-    """.replace("{0}", "false").replace("{playBtn code}", playBtn.onclick.toString()).replace("{recordBtn code}", recordBtn.onclick.toString()).replace("{stopBtn code}", stopBtn.onclick.toString())
+    """ % (lyrics_b64 or "", logo_b64 or "", original_b64 or "", accompaniment_b64 or "")
 
     html(karaoke_template, height=800, width=1920)
-
-    # Listen for navigation messages
-    st.markdown("""
-    <script>
-    window.addEventListener('message', function(event) {
-        if (event.data.type === 'GO_BACK') {
-            window.parent.postMessage({type: 'GO_BACK'}, '*');
-        } else if (event.data.type === 'GO_FORWARD') {
-            window.parent.postMessage({type: 'GO_FORWARD'}, '*');
-        }
-    });
-    </script>
-    """, unsafe_allow_html=True)
 
 # =============== FALLBACK ===============
 else:
