@@ -597,8 +597,9 @@ recordBtn.onclick = async () => {
     micSource = audioContext.createMediaStreamSource(micStream);
 
     /* ACCOMPANIMENT */
-    const accRes = await fetch(accompanimentAudio.src);
-    const accBuf = await accRes.arrayBuffer();
+    const accBlob = await (await fetch(accompanimentAudio.src)).blob();
+    const accArrayBuffer = await accBlob.arrayBuffer();
+
     const accDecoded = await audioContext.decodeAudioData(accBuf);
 
     accSource = audioContext.createBufferSource();
@@ -610,8 +611,8 @@ recordBtn.onclick = async () => {
 
     accSource.start();
 
-    canvas.width = 1920;
-    canvas.height = 1080;
+    canvas.width = 1280;
+    canvas.height = 720;
     drawCanvas();
 
     const stream = new MediaStream([
