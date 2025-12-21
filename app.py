@@ -99,7 +99,6 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
-# 🆕 BACK BUTTON SUPPORT
 if "previous_page" not in st.session_state:
     st.session_state.previous_page = None
 
@@ -227,20 +226,20 @@ if st.session_state.page == "Login":
                 if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
                     st.session_state.user = username
                     st.session_state.role = "admin"
+                    st.session_state.previous_page = "Login"
                     st.session_state.page = "Admin Dashboard"
-                    st.session_state.previous_page = None
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
+                    st.session_state.previous_page = "Login"
                     st.session_state.page = "User Dashboard"
-                    st.session_state.previous_page = None
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
+                    st.session_state.previous_page = "Login"
                     st.session_state.page = "User Dashboard"
-                    st.session_state.previous_page = None
                     st.rerun()
                 else:
                     st.error("❌ Invalid credentials")
@@ -403,18 +402,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     </style>
     """, unsafe_allow_html=True)
 
-    # 🆕 BACK BUTTON - Always visible at top-left
-    col1, col2 = st.columns([1, 10])
-    with col1:
-        if st.button("⬅ Back", key="back_button"):
-            if st.session_state.previous_page:
-                st.session_state.page = st.session_state.previous_page
-                st.session_state.selected_song = None
-            else:
-                st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
-                st.session_state.selected_song = None
-            st.rerun()
-    
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
@@ -428,8 +415,18 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     if not (is_shared or is_admin):
         st.error("❌ Access denied! This song is not shared with users.")
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
-        st.session_state.selected_song = None
         st.rerun()
+
+    # BACK BUTTON - Works on all devices
+    col1, col2 = st.columns([1, 10])
+    with col1:
+        if st.button("⬅ Back", key="back_button"):
+            st.session_state.page = st.session_state.get("previous_page", "Login")
+            if st.session_state.page == "Login":
+                for key in ["selected_song", "previous_page"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+            st.rerun()
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
@@ -464,17 +461,15 @@ button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; co
 button:active { transform: scale(0.95); }
 .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
 #logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
-.back-btn { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 10px 15px; border-radius: 20px; font-size: 14px; z-index: 100; cursor: pointer; }
-.back-btn:hover { background: rgba(255,255,255,0.3); }
+.back-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: transparent; z-index: 1000; display: none; }
 canvas { display: none; }
 </style>
 </head>
 <body>
 
+<div class="back-overlay" id="backOverlay"></div>
+
 <div class="reel-container" id="reelContainer">
-    <!-- 🆕 BACK BUTTON IN HTML PLAYER TOO -->
-    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
-    
     <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
     <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
     <div id="status">Ready 🎤</div>
@@ -484,12 +479,12 @@ canvas { display: none; }
       <button id="playBtn">▶ Play</button>
       <button id="recordBtn">🎙 Record</button>
       <button id="stopBtn" style="display:none;">⏹ Stop</button>
+      <button id="backBtn" style="background: linear-gradient(135deg, #667eea, #764ba2);">⬅ Back</button>
     </div>
 </div>
 
 <div class="final-output" id="finalOutputDiv">
   <div class="final-reel-container">
-    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
     <img class="reel-bg" id="finalBg">
     <div id="status"></div>
     <div class="lyrics" id="finalLyrics"></div>
@@ -499,6 +494,7 @@ canvas { display: none; }
         <button>⬇ Download</button>
       </a>
       <button id="newRecordingBtn">🔄 New Recording</button>
+      <button id="backBtnFinal" style="background: linear-gradient(135deg, #667eea, #764ba2);">⬅ Back</button>
     </div>
   </div>
 </div>
@@ -512,6 +508,9 @@ let audioContext, micSource, accSource, canvasRafId, logoImg;
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
 const stopBtn = document.getElementById("stopBtn");
+const backBtn = document.getElementById("backBtn");
+const backBtnFinal = document.getElementById("backBtnFinal");
+const backOverlay = document.getElementById("backOverlay");
 const status = document.getElementById("status");
 const originalAudio = document.getElementById("originalAudio");
 const accompanimentAudio = document.getElementById("accompaniment");
@@ -525,6 +524,11 @@ const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext('2d');
 
+// BACK BUTTON FUNCTIONALITY - Works everywhere
+function goBack() {
+    window.parent.postMessage({type: 'GO_BACK'}, '*');
+}
+
 // Preload logo for canvas
 logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
@@ -532,6 +536,16 @@ logoImg.src = document.getElementById("logoImg").src;
 async function safePlay(audio){ 
     try{ await audio.play(); }catch(e){console.log("Autoplay blocked:", e);} 
 }
+
+// BACK BUTTONS
+backBtn.onclick = goBack;
+backBtnFinal.onclick = goBack;
+
+// BACK OVERLAY - Click anywhere to go back
+backOverlay.onclick = goBack;
+
+// BROWSER BACK BUTTON SUPPORT
+window.addEventListener('popstate', goBack);
 
 playBtn.onclick = async () => { 
     if (originalAudio.paused) {
@@ -699,6 +713,13 @@ stopBtn.onclick = () => {
     status.innerText="⏹ Processing video...";
     stopBtn.style.display="none";
 };
+
+// Listen for back messages from Streamlit
+window.addEventListener('message', function(event) {
+    if (event.data.type === 'GO_BACK') {
+        window.parent.postMessage({type: 'GO_BACK'}, '*');
+    }
+});
 </script>
 
 </body>
@@ -710,7 +731,26 @@ stopBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-    html(karaoke_html, height=800, width=1920)
+    # Listen for back messages from HTML component
+    def handle_back_message():
+        if st.session_state.get("page") == "Song Player":
+            st.session_state.page = st.session_state.get("previous_page", "Login")
+            if st.session_state.page == "Login":
+                for key in ["selected_song", "previous_page"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+            st.rerun()
+
+    # This will catch the back message
+    html(karaoke_html + """
+    <script>
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'GO_BACK') {
+            window.parent.postMessage({type: 'GO_BACK'}, '*');
+        }
+    });
+    </script>
+    """, height=800, width=1920)
 
 # =============== FALLBACK ===============
 else:
