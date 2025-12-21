@@ -99,6 +99,9 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
+# 🆕 BACK BUTTON SUPPORT
+if "previous_page" not in st.session_state:
+    st.session_state.previous_page = None
 
 metadata = load_metadata()
 
@@ -225,16 +228,19 @@ if st.session_state.page == "Login":
                     st.session_state.user = username
                     st.session_state.role = "admin"
                     st.session_state.page = "Admin Dashboard"
+                    st.session_state.previous_page = None
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
+                    st.session_state.previous_page = None
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
+                    st.session_state.previous_page = None
                     st.rerun()
                 else:
                     st.error("❌ Invalid credentials")
@@ -299,6 +305,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
+                        st.session_state.previous_page = "Admin Dashboard"
                         st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
                         st.rerun()
@@ -365,6 +372,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                 st.write(f"✅ *{song}* (Shared)")
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
+                    st.session_state.previous_page = "User Dashboard"
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
                     st.rerun()
@@ -395,6 +403,18 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     </style>
     """, unsafe_allow_html=True)
 
+    # 🆕 BACK BUTTON - Always visible at top-left
+    col1, col2 = st.columns([1, 10])
+    with col1:
+        if st.button("⬅ Back", key="back_button"):
+            if st.session_state.previous_page:
+                st.session_state.page = st.session_state.previous_page
+                st.session_state.selected_song = None
+            else:
+                st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
+                st.session_state.selected_song = None
+            st.rerun()
+    
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
@@ -408,6 +428,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     if not (is_shared or is_admin):
         st.error("❌ Access denied! This song is not shared with users.")
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
+        st.session_state.selected_song = None
         st.rerun()
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
@@ -424,7 +445,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION + BACK BUTTON SUPPORT
     karaoke_template = """
 <!doctype html>
 <html>
@@ -443,12 +464,17 @@ button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; co
 button:active { transform: scale(0.95); }
 .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
 #logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
+.back-btn { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 10px 15px; border-radius: 20px; font-size: 14px; z-index: 100; cursor: pointer; }
+.back-btn:hover { background: rgba(255,255,255,0.3); }
 canvas { display: none; }
 </style>
 </head>
 <body>
 
 <div class="reel-container" id="reelContainer">
+    <!-- 🆕 BACK BUTTON IN HTML PLAYER TOO -->
+    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
+    
     <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
     <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
     <div id="status">Ready 🎤</div>
@@ -463,6 +489,7 @@ canvas { display: none; }
 
 <div class="final-output" id="finalOutputDiv">
   <div class="final-reel-container">
+    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
     <img class="reel-bg" id="finalBg">
     <div id="status"></div>
     <div class="lyrics" id="finalLyrics"></div>
@@ -617,7 +644,7 @@ recordBtn.onclick = async () => {
         finalLyrics.innerText = "";
         finalDiv.style.display = "flex";
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
         
         playRecordingBtn.onclick = () => {
             if(!isPlayingRecording){
