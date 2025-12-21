@@ -578,15 +578,42 @@ recordBtn.onclick = async () => {
     canvas.height = 1080;
 
     function drawCanvas() {
-        ctx.fillStyle = "#111";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(mainBg, 0, 0, canvas.width, canvas.height * 0.85);
-        ctx.globalAlpha = 0.6;
-        ctx.drawImage(logoImg, 20, 20, 60, 60);
-        ctx.globalAlpha = 1;
-        canvasRafId = requestAnimationFrame(drawCanvas);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    /* ===== IMAGE: SAME AS CSS object-fit: contain + top ===== */
+    const img = mainBg;
+
+    const canvasW = canvas.width;
+    const canvasH = canvas.height * 0.85;
+
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = canvasW / canvasH;
+
+    let drawW, drawH;
+
+    if (imgRatio > canvasRatio) {
+        drawW = canvasW;
+        drawH = canvasW / imgRatio;
+    } else {
+        drawH = canvasH;
+        drawW = canvasH * imgRatio;
     }
-    drawCanvas();
+
+    const x = (canvasW - drawW) / 2;
+    const y = 0; // TOP aligned (IMPORTANT)
+
+    ctx.drawImage(img, x, y, drawW, drawH);
+
+    /* ===== LOGO: RESPONSIVE LIKE DJANGO ===== */
+    const logoSize = canvas.width * 0.04; // ~4% width
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(logoImg, 20, 20, logoSize, logoSize);
+    ctx.globalAlpha = 1;
+
+    canvasRafId = requestAnimationFrame(drawCanvas);
+}
+
 
     const stream = new MediaStream([
         ...canvas.captureStream(30).getTracks(),
