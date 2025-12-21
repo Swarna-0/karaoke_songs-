@@ -282,7 +282,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 
             metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
             save_metadata(metadata)
-            st.success(f"✅ Uploaded: {song_name}")
+            st.success(f"✅ Uploaded: *{song_name}*")
             st.rerun()
 
     elif page_sidebar == "Songs List":
@@ -296,7 +296,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"**{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
@@ -317,25 +317,25 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
             is_shared = song in shared_links_data
 
             with col1:
-                status = "✅ *SHARED" if is_shared else "❌ **NOT SHARED*"
+                status = "✅ **SHARED**" if is_shared else "❌ **NOT SHARED**"
                 st.write(f"{song} - {status}")
 
             with col2:
                 if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
-                        st.success(f"✅ *{song}* unshared! Users can no longer see this song.")
+                        st.success(f"✅ **{song}** unshared! Users can no longer see this song.")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
                         share_url = f"{APP_URL}?song={safe_song}"
-                        st.success(f"✅ *{song}* shared! Link: {share_url}")
+                        st.success(f"✅ **{song}** shared! Link: {share_url}")
                     st.rerun()
 
             with col3:
                 if is_shared:
                     if st.button("🚫 Unshare", key=f"unshare_{song}"):
                         delete_shared_link(song)
-                        st.success(f"✅ *{song}* unshared! Users cannot see this song anymore.")
+                        st.success(f"✅ **{song}** unshared! Users cannot see this song anymore.")
                         st.rerun()
 
             with col4:
@@ -362,7 +362,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
         for song in uploaded_songs:
             col1, col2 = st.columns([3,1])
             with col1:
-                st.write(f"✅ *{song}* (Shared)")
+                st.write(f"✅ **{song}** (Shared)")
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
@@ -455,9 +455,9 @@ canvas { display: none; }
     <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
     <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
     <div class="controls">
-      <button id="playBtn">▶ Play</button>
-      <button id="recordBtn">🎙 Record</button>
-      <button id="stopBtn" style="display:none;">⏹ Stop</button>
+      <button id="playBtn">▶️ Play</button>
+      <button id="recordBtn">🎙️ Record</button>
+      <button id="stopBtn" style="display:none;">⏹️ Stop</button>
     </div>
 </div>
 
@@ -467,9 +467,9 @@ canvas { display: none; }
     <div id="status"></div>
     <div class="lyrics" id="finalLyrics"></div>
     <div class="controls">
-      <button id="playRecordingBtn">▶ Play Recording</button>
+      <button id="playRecordingBtn">▶️ Play Recording</button>
       <a id="downloadRecordingBtn" href="#" download>
-        <button>⬇ Download</button>
+        <button>⬇️ Download</button>
       </a>
       <button id="newRecordingBtn">🔄 New Recording</button>
     </div>
@@ -511,11 +511,11 @@ playBtn.onclick = async () => {
         originalAudio.currentTime = 0; 
         await safePlay(originalAudio); 
         status.innerText = "🎵 Playing song..."; 
-        playBtn.innerText = "⏸ Pause";
+        playBtn.innerText = "⏸️ Pause";
     } else {
         originalAudio.pause();
-        status.innerText = "⏸ Paused";
-        playBtn.innerText = "▶ Play";
+        status.innerText = "⏸️ Paused";
+        playBtn.innerText = "▶️ Play";
     }
 };
 
@@ -617,23 +617,23 @@ recordBtn.onclick = async () => {
         finalLyrics.innerText = "";
         finalDiv.style.display = "flex";
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
         
         playRecordingBtn.onclick = () => {
             if(!isPlayingRecording){
                 playRecordingAudio = new Audio(url);
                 playRecordingAudio.play();
                 isPlayingRecording=true;
-                playRecordingBtn.innerText="⏹ Stop";
+                playRecordingBtn.innerText="⏹️ Stop";
                 playRecordingAudio.onended=()=>{
                     isPlayingRecording=false; 
-                    playRecordingBtn.innerText="▶ Play Recording"; 
+                    playRecordingBtn.innerText="▶️ Play Recording"; 
                 };
             }else{
                 playRecordingAudio.pause(); 
                 playRecordingAudio.currentTime=0;
                 isPlayingRecording=false; 
-                playRecordingBtn.innerText="▶ Play Recording";
+                playRecordingBtn.innerText="▶️ Play Recording";
             }
         };
         
@@ -641,7 +641,7 @@ recordBtn.onclick = async () => {
             finalDiv.style.display = "none";
             status.innerText = "Ready 🎤";
             playBtn.style.display="inline-block";
-            playBtn.innerText = "▶ Play";
+            playBtn.innerText = "▶️ Play";
             recordBtn.style.display="inline-block";
             stopBtn.style.display="none";
             if(playRecordingAudio){
@@ -658,7 +658,7 @@ recordBtn.onclick = async () => {
     await safePlay(originalAudio); await safePlay(accompanimentAudio);
     
     playBtn.style.display="none"; recordBtn.style.display="none"; stopBtn.style.display="inline-block";
-    status.innerText="🎙 Recording... (Mic + Music + Video)";
+    status.innerText="🎙️ Recording... (Mic + Music + Video)";
 };
 
 stopBtn.onclick = () => {
@@ -669,7 +669,7 @@ stopBtn.onclick = () => {
         cancelAnimationFrame(canvasRafId);
     } catch(e) {}
     originalAudio.pause(); accompanimentAudio.pause();
-    status.innerText="⏹ Processing video...";
+    status.innerText="⏹️ Processing video...";
     stopBtn.style.display="none";
 };
 </script>
