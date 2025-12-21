@@ -723,8 +723,18 @@ newRecordingBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
+    st.markdown("""
+    <style>
+    iframe {
+        width: 100vw !important;
+        height: 100vh !important;
+        border: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    html(karaoke_html, height=800, width=1920)
+    html(karaoke_html, height=1080, width=None)
+
 
 # =============== FALLBACK ===============
 else:
