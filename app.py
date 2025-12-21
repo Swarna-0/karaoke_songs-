@@ -99,12 +99,6 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
-if "previous_page" not in st.session_state:
-    st.session_state.previous_page = None
-if "navigation_history" not in st.session_state:
-    st.session_state.navigation_history = []
-if "history_index" not in st.session_state:
-    st.session_state.history_index = -1
 
 metadata = load_metadata()
 
@@ -118,34 +112,6 @@ if not os.path.exists(default_logo_path):
         st.rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
-# Navigation function
-def navigate_to(page, save_history=True):
-    if save_history:
-        current_page = st.session_state.get("page", "Login")
-        if st.session_state.navigation_history and st.session_state.history_index < len(st.session_state.navigation_history) - 1:
-            st.session_state.navigation_history = st.session_state.navigation_history[:st.session_state.history_index + 1]
-        st.session_state.navigation_history.append(current_page)
-        st.session_state.history_index += 1
-    
-    st.session_state.previous_page = st.session_state.get("page", "Login")
-    st.session_state.page = page
-
-def go_back():
-    if st.session_state.history_index > 0:
-        st.session_state.history_index -= 1
-        prev_page = st.session_state.navigation_history[st.session_state.history_index]
-        st.session_state.page = prev_page
-        st.rerun()
-    else:
-        st.session_state.page = "Login"
-        st.rerun()
-
-def go_forward():
-    if st.session_state.history_index < len(st.session_state.navigation_history) - 1:
-        st.session_state.history_index += 1
-        st.session_state.page = st.session_state.navigation_history[st.session_state.history_index]
-        st.rerun()
-
 # =============== RESPONSIVE LOGIN PAGE ===============
 if st.session_state.page == "Login":
 
@@ -153,21 +119,92 @@ if st.session_state.page == "Login":
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-    body { background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%); }
-    .login-content { padding: 1.8rem 2.2rem 2.2rem 2.2rem; }
-    .login-header { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; margin-bottom: 1.6rem; text-align: center; }
-    .login-header img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); }
-    .login-title { font-size: 1.6rem; font-weight: 700; width: 100%; }
-    .login-sub { font-size: 0.9rem; color: #c3cfdd; margin-bottom: 0.5rem; width: 100%; }
-    .stTextInput input { background: rgba(5,10,25,0.7) !important; border-radius: 10px !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding: 12px 14px !important; }
-    .stTextInput input:focus { border-color: rgba(255,255,255,0.6) !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.3); }
-    .stButton button { width: 100%; height: 44px; background: linear-gradient(to right, #1f2937, #020712); border-radius: 10px; font-weight: 600; margin-top: 0.6rem; color: white; border: none; }
+
+    body {
+        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
+    }
+
+    /* INNER CONTENT PADDING - Reduced since box has padding now */
+    .login-content {
+        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
+    }
+
+    /* CENTERED HEADER SECTION */
+    .login-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.8rem; /* Slightly more gap */
+        margin-bottom: 1.6rem; /* More bottom margin */
+        text-align: center;
+    }
+
+    .login-header img {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.4);
+    }
+
+    .login-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        width: 100%;
+    }
+
+    .login-sub {
+        font-size: 0.9rem;
+        color: #c3cfdd;
+        margin-bottom: 0.5rem;
+        width: 100%;
+    }
+
+    /* CREDENTIALS INFO */
+    .credentials-info {
+        background: rgba(5,10,25,0.8);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 16px;
+        font-size: 0.85rem;
+        color: #b5c2d2;
+    }
+
+    /* INPUTS BLEND WITH BOX */
+    .stTextInput input {
+        background: rgba(5,10,25,0.7) !important;
+        border-radius: 10px !important;
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        padding: 12px 14px !important; /* Better input padding */
+    }
+
+    .stTextInput input:focus {
+        border-color: rgba(255,255,255,0.6) !important;
+        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+    }
+
+    .stButton button {
+        width: 100%;
+        height: 44px; /* Slightly taller */
+        background: linear-gradient(to right, #1f2937, #020712);
+        border-radius: 10px; /* Match input radius */
+        font-weight: 600;
+        margin-top: 0.6rem;
+        color: white;
+        border: none;
+    }
     </style>
     """, unsafe_allow_html=True)
 
+    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
+
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
+
+        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -187,17 +224,17 @@ if st.session_state.page == "Login":
                 if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
                     st.session_state.user = username
                     st.session_state.role = "admin"
-                    navigate_to("Admin Dashboard")
+                    st.session_state.page = "Admin Dashboard"
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
-                    navigate_to("User Dashboard")
+                    st.session_state.page = "User Dashboard"
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
-                    navigate_to("User Dashboard")
+                    st.session_state.page = "User Dashboard"
                     st.rerun()
                 else:
                     st.error("❌ Invalid credentials")
@@ -207,31 +244,11 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
-    st.markdown("""
-    <style>
-    .nav-buttons { position: fixed; top: 10px; left: 10px; z-index: 1000; display: flex; gap: 5px; }
-    .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 8px 12px !important; font-size: 14px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 2px 10px rgba(102,126,234,0.4) !important; }
-    .nav-btn:hover { transform: scale(1.05) !important; }
-    .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 8, 1])
-    with col1:
-        st.markdown('<div class="nav-buttons">', unsafe_allow_html=True)
-        col_back, col_forward = st.columns([1,1])
-        with col_back:
-            if st.button("⬅ Back", key="admin_back"):
-                go_back()
-        with col_forward:
-            if st.button("➡️ Forward", key="admin_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
-                go_forward()
-        st.markdown('</div>', unsafe_allow_html=True)
-
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
 
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
@@ -283,7 +300,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
-                        navigate_to("Song Player")
+                        st.session_state.page = "Song Player"
                         st.rerun()
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
@@ -333,27 +350,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    st.markdown("""
-    <style>
-    .nav-buttons { position: fixed; top: 10px; left: 10px; z-index: 1000; display: flex; gap: 5px; }
-    .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 8px 12px !important; font-size: 14px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 2px 10px rgba(102,126,234,0.4) !important; }
-    .nav-btn:hover { transform: scale(1.05) !important; }
-    .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 8, 1])
-    with col1:
-        st.markdown('<div class="nav-buttons">', unsafe_allow_html=True)
-        col_back, col_forward = st.columns([1,1])
-        with col_back:
-            if st.button("⬅ Back", key="user_back"):
-                go_back()
-        with col_forward:
-            if st.button("➡️ Forward", key="user_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
-                go_forward()
-        st.markdown('</div>', unsafe_allow_html=True)
-
     st.title(f"👤 User Dashboard - {st.session_state.user}")
 
     st.subheader("🎵 Available Songs (Only Shared Songs)")
@@ -370,7 +366,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
-                    navigate_to("Song Player")
+                    st.session_state.page = "Song Player"
                     st.rerun()
 
     if st.button("🚪 Logout"):
@@ -388,12 +384,14 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container { padding: 0 !important; margin: 0 !important; width: 100vw !important; }
-    html, body { overflow: hidden !important; }
-    .top-nav { position: fixed; top: 10px; left: 10px; z-index: 10000; display: flex; gap: 5px; background: rgba(0,0,0,0.9); padding: 8px; border-radius: 25px; }
-    .nav-btn { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important; border-radius: 20px !important; padding: 10px 15px !important; font-size: 16px !important; font-weight: 600 !important; border: none !important; box-shadow: 0 3px 15px rgba(102,126,234,0.5) !important; cursor: pointer !important; }
-    .nav-btn:hover { transform: scale(1.05) !important; }
-    .nav-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
+    div.block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+    }
+    html, body {
+        overflow: hidden !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -412,14 +410,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
 
-    # TOP NAVIGATION BAR
-    col1, col2 = st.columns([1,10])
-    with col1:
-        if st.button("⬅ Back", key="player_back"):
-            go_back()
-        if st.button("➡️ Forward", key="player_forward", disabled=st.session_state.history_index >= len(st.session_state.navigation_history)-1):
-            go_forward()
-
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -434,7 +424,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # FIXED KARAOKE TEMPLATE - No f-string issues
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -459,11 +449,11 @@ canvas { display: none; }
 <body>
 
 <div class="reel-container" id="reelContainer">
-    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%s">
-    <img id="logoImg" src="data:image/png;base64,%s">
+    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
+    <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
     <div id="status">Ready 🎤</div>
-    <audio id="originalAudio" src="data:audio/mp3;base64,%s"></audio>
-    <audio id="accompaniment" src="data:audio/mp3;base64,%s"></audio>
+    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
     <div class="controls">
       <button id="playBtn">▶ Play</button>
       <button id="recordBtn">🎙 Record</button>
@@ -564,6 +554,7 @@ recordBtn.onclick = async () => {
     accSource.start();
     userAccSource.start();
     
+    // ✅ PERFECT CANVAS RENDERING - EXACTLY LIKE DJANGO
     canvas.width = 1920;
     canvas.height = 1080;
     
@@ -571,9 +562,10 @@ recordBtn.onclick = async () => {
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
+        // Render main background image EXACTLY like reel-bg
         if (mainBg.complete && mainBg.naturalWidth > 0) {
             const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
-            let videoHeight = 0.85 * canvas.height;
+            let videoHeight = 0.85 * canvas.height; // 85vh
             let videoWidth = videoHeight * imgRatio;
             
             if (videoWidth > canvas.width) {
@@ -582,11 +574,12 @@ recordBtn.onclick = async () => {
             }
             
             const x = (canvas.width - videoWidth) / 2;
-            const y = 0;
+            const y = 0; // object-position: top
             
             ctx.drawImage(mainBg, x, y, videoWidth, videoHeight);
         }
         
+        // ✅ PERFECT LOGO POSITIONING - EXACTLY LIKE DJANGO
         if (logoImg.complete && logoImg.naturalWidth > 0) {
             ctx.globalAlpha = 0.6;
             ctx.drawImage(logoImg, 20, 20, 60, 60);
@@ -624,7 +617,7 @@ recordBtn.onclick = async () => {
         finalLyrics.innerText = "";
         finalDiv.style.display = "flex";
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
+        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
         
         playRecordingBtn.onclick = () => {
             if(!isPlayingRecording){
@@ -680,11 +673,17 @@ stopBtn.onclick = () => {
     stopBtn.style.display="none";
 };
 </script>
+
 </body>
 </html>
-    """ % (lyrics_b64 or "", logo_b64 or "", original_b64 or "", accompaniment_b64 or "")
+"""
 
-    html(karaoke_template, height=800, width=1920)
+    karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
+    karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
+
+    html(karaoke_html, height=800, width=1920)
 
 # =============== FALLBACK ===============
 else:
