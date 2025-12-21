@@ -5,6 +5,22 @@ import json
 from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
+# --------- AUTO LOGIN RESTORE FROM URL ----------
+query_params = st.experimental_get_query_params()
+
+if "auth" in query_params and query_params.get("auth") == ["1"]:
+    role = query_params.get("role", [None])[0]
+    user = query_params.get("user", [None])[0]
+
+    if role and user:
+        st.session_state.user = user
+        st.session_state.role = role
+
+        if role == "admin":
+            st.session_state.page = "Admin Dashboard"
+        else:
+            st.session_state.page = "User Dashboard"
+
 
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
@@ -221,23 +237,45 @@ if st.session_state.page == "Login":
                 st.error("❌ Enter both username and password")
             else:
                 hashed_pass = hash_password(password)
+
                 if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
                     st.session_state.user = username
                     st.session_state.role = "admin"
                     st.session_state.page = "Admin Dashboard"
+
+                    st.experimental_set_query_params(
+                        auth="1",
+                        role="admin",
+                        user=username
+                    )
                     st.rerun()
+
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
+
+                    st.experimental_set_query_params(
+                        auth="1",
+                        role="user",
+                        user=username
+                    )
                     st.rerun()
+
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
+
+                    st.experimental_set_query_params(
+                        auth="1",
+                        role="user",
+                        user=username
+                    )
                     st.rerun()
                 else:
                     st.error("❌ Invalid credentials")
+
 
         st.markdown("""
         <div style="margin-top:16px;font-size:0.8rem;color:#b5c2d2;text-align:center;padding-bottom:8px;">
@@ -369,10 +407,12 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                     st.session_state.page = "Song Player"
                     st.rerun()
 
-    if st.button("🚪 Logout"):
+    if st.sidebar.button("🚪 Logout") if st.session_state.role == "admin" else st.button("🚪 Logout"):
+        st.experimental_set_query_params()  # clear URL
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
+
 
 # =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
