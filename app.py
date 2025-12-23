@@ -34,7 +34,6 @@ os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
 
-
 # Helper functions
 def file_to_base64(path):
     if os.path.exists(path):
@@ -301,13 +300,11 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}**")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
-                        st.session_state.selected_song = song
-                        st.session_state.auto_play = True   # 🔥 KEY
+                        st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
-
                         st.rerun()
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
@@ -373,9 +370,7 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
-                    st.session_state.auto_play = True   # 🔥 KEY
                     st.session_state.page = "Song Player"
-
                     st.rerun()
 
     if st.button("🚪 Logout"):
@@ -390,6 +385,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     <style>
     [data-testid="stSidebar"] {display: none !important;}
     header {visibility: hidden !important;}
+    .st-emotion-cache-1pahdxg {display:none !important;}
+    .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
     div.block-container {
         padding: 0 !important;
@@ -402,12 +399,21 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     </style>
     """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.get("selected_song")
+    selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
         st.stop()
 
-    # ✅ DEFINE PATHS FIRST
+    # Double-check access permission
+    shared_links = load_shared_links()
+    is_shared = selected_song in shared_links
+    is_admin = st.session_state.role == "admin"
+
+    if not (is_shared or is_admin):
+        st.error("❌ Access denied! This song is not shared with users.")
+        st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
+        st.rerun()
+
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -417,8 +423,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         if os.path.exists(p):
             lyrics_path = p
             break
-
-    # 🧪 DEBUG (TEMP – REMOVE LATER)
 
     original_b64 = file_to_base64(original_path)
     accompaniment_b64 = file_to_base64(accompaniment_path)
@@ -450,7 +454,6 @@ canvas {display:none;}
 <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
 <div id="status">Ready 🎤</div>
 <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
-
 <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
 <div class="controls">
 <button id="playBtn">▶ Play</button>
@@ -500,18 +503,13 @@ async function ensureAudioContext() {
 async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
 
 playBtn.onclick = async () => {
-    await ensureAudioContext();
     if (originalAudio.paused) {
-        // రెండు ఆడియోలు ఒకేసారి స్టార్ట్ అవ్వడానికి
-        originalAudio.play();
-        accompanimentAudio.play();
-        playBtn.innerText="⏸ Pause"; 
-        status.innerText="🎵 Playing song...";
+        originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
+        await safePlay(originalAudio); await safePlay(accompanimentAudio);
+        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Playing song...";
     } else {
-        originalAudio.pause();
-        accompanimentAudio.pause();
-        playBtn.innerText="▶ Play"; 
-        status.innerText="⏸ Paused";
+        originalAudio.pause(); accompanimentAudio.pause();
+        playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
     }
 };
 
@@ -550,7 +548,7 @@ recordBtn.onclick = async () => {
         const url=URL.createObjectURL(blob);
         if(lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
         lastRecordingURL=url; finalBg.src=mainBg.src; finalDiv.style.display="flex";
-        downloadRecordingBtn.href=url; downloadRecordingBtn.download=karaoke_${Date.now()}.webm;
+        downloadRecordingBtn.href=url; downloadRecordingBtn.download=`karaoke_${Date.now()}.webm`;
         playRecordingBtn.onclick=()=>{
             if(!isPlayingRecording){playRecordingAudio=new Audio(url); playRecordingAudio.play(); playRecordingBtn.innerText="⏹ Stop"; isPlayingRecording=true; playRecordingAudio.onended=resetPlayBtn;}
             else resetPlayBtn();
@@ -584,8 +582,6 @@ newRecordingBtn.onclick = ()=>{
 </body>
 </html>
 """
-
-
 
     karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
