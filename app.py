@@ -6,6 +6,8 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
+PORT = int(os.environ.get("PORT", 8501))
+
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
