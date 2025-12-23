@@ -304,8 +304,10 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
-                        st.session_state.selected_song = s
+                        st.session_state.selected_song = song
+                        st.session_state.auto_play = True   # 🔥 KEY
                         st.session_state.page = "Song Player"
+
                         st.rerun()
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
@@ -371,7 +373,9 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
+                    st.session_state.auto_play = True   # 🔥 KEY
                     st.session_state.page = "Song Player"
+
                     st.rerun()
 
     if st.button("🚪 Logout"):
