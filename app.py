@@ -415,11 +415,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             break
 
     # 🧪 DEBUG (TEMP – REMOVE LATER)
-    st.write("Original exists:", os.path.exists(original_path))
-    st.write("Accompaniment exists:", os.path.exists(accompaniment_path))
-    st.write("Lyrics exists:", os.path.exists(lyrics_path))
-    st.write("Original size:", os.path.getsize(original_path) if os.path.exists(original_path) else 0)
-
 
     original_b64 = file_to_base64(original_path)
     accompaniment_b64 = file_to_base64(accompaniment_path)
