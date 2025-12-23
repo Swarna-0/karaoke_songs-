@@ -501,15 +501,17 @@ async function ensureAudioContext() {
 async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
 
 playBtn.onclick = async () => {
-    if (originalAudio.paused) {
-        originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
-        await safePlay(originalAudio); await safePlay(accompanimentAudio);
-        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Playing song...";
+    if (accompanimentAudio.paused) {
+        // 🎵 Play ONLY accompaniment (karaoke track) for preview
+        accompanimentAudio.currentTime = 0;
+        await safePlay(accompanimentAudio);
+        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Karaoke Track Playing...";
     } else {
-        originalAudio.pause(); accompanimentAudio.pause();
+        accompanimentAudio.pause();
         playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
     }
 };
+
 
 function drawCanvas() {
     ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
