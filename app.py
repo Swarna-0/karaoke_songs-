@@ -19,8 +19,10 @@ USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
 # Base directories
-base_dir = os.getcwd()
-media_dir = os.path.join(base_dir, "media")
+# ================= PERSISTENT STORAGE =================
+BASE_STORAGE = "/data" if os.path.exists("/data") else os.getcwd()
+
+media_dir = os.path.join(BASE_STORAGE, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
@@ -31,6 +33,7 @@ os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
+
 
 # Helper functions
 def file_to_base64(path):
