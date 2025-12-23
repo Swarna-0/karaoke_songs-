@@ -11,7 +11,7 @@ PORT = int(os.environ.get("PORT", 8501))
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-song.onrender.com/"
+APP_URL = "https://karaoke-project-production.up.railway.app/"
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -501,17 +501,20 @@ async function ensureAudioContext() {
 async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
 
 playBtn.onclick = async () => {
-    if (accompanimentAudio.paused) {
-        // 🎵 Play ONLY accompaniment (karaoke track) for preview
-        accompanimentAudio.currentTime = 0;
-        await safePlay(accompanimentAudio);
-        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Karaoke Track Playing...";
+    await ensureAudioContext();
+    if (originalAudio.paused) {
+        // రెండు ఆడియోలు ఒకేసారి స్టార్ట్ అవ్వడానికి
+        originalAudio.play();
+        accompanimentAudio.play();
+        playBtn.innerText="⏸ Pause"; 
+        status.innerText="🎵 Playing song...";
     } else {
+        originalAudio.pause();
         accompanimentAudio.pause();
-        playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
+        playBtn.innerText="▶ Play"; 
+        status.innerText="⏸ Paused";
     }
 };
-
 
 function drawCanvas() {
     ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
