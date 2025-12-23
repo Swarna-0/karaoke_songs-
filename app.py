@@ -386,8 +386,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     <style>
     [data-testid="stSidebar"] {display: none !important;}
     header {visibility: hidden !important;}
-    .st-emotion-cache-1pahdxg {display:none !important;}
-    .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
     div.block-container {
         padding: 0 !important;
@@ -400,21 +398,12 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     </style>
     """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.get("selected_song", None)
+    selected_song = st.session_state.get("selected_song")
     if not selected_song:
         st.error("No song selected!")
         st.stop()
 
-    # Double-check access permission
-    shared_links = load_shared_links()
-    is_shared = selected_song in shared_links
-    is_admin = st.session_state.role == "admin"
-
-    if not (is_shared or is_admin):
-        st.error("❌ Access denied! This song is not shared with users.")
-        st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
-        st.rerun()
-
+    # ✅ DEFINE PATHS FIRST
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -424,6 +413,13 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         if os.path.exists(p):
             lyrics_path = p
             break
+
+    # 🧪 DEBUG (TEMP – REMOVE LATER)
+    st.write("Original exists:", os.path.exists(original_path))
+    st.write("Accompaniment exists:", os.path.exists(accompaniment_path))
+    st.write("Lyrics exists:", os.path.exists(lyrics_path))
+    st.write("Original size:", os.path.getsize(original_path) if os.path.exists(original_path) else 0)
+
 
     original_b64 = file_to_base64(original_path)
     accompaniment_b64 = file_to_base64(accompaniment_path)
@@ -455,6 +451,7 @@ canvas {display:none;}
 <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
 <div id="status">Ready 🎤</div>
 <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+
 <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
 <div class="controls">
 <button id="playBtn">▶ Play</button>
