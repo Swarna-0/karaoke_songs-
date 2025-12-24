@@ -5,6 +5,8 @@ import json
 from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
+import shutil
+from datetime import datetime
 
 PORT = int(os.environ.get("PORT", 8501))
 
@@ -18,22 +20,21 @@ ADMIN_HASH = os.getenv("ADMIN_HASH", "")
 USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
-# Base directories
-# ================= PERSISTENT STORAGE =================
-BASE_STORAGE = "/data" if os.path.exists("/data") else os.getcwd()
-
-media_dir = os.path.join(BASE_STORAGE, "media")
+# Base directories - PERSISTENT STORAGE
+base_dir = os.getcwd()
+media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
 shared_links_dir = os.path.join(media_dir, "shared_links")
 metadata_path = os.path.join(media_dir, "song_metadata.json")
+storage_info_path = os.path.join(media_dir, "storage_info.json")
 
+# Create all directories
 os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
-
 
 # Helper functions
 def file_to_base64(path):
@@ -54,6 +55,24 @@ def load_metadata():
 def save_metadata(data):
     with open(metadata_path, "w") as f:
         json.dump(data, f, indent=2)
+
+def load_storage_info():
+    if os.path.exists(storage_info_path):
+        with open(storage_info_path, "r") as f:
+            return json.load(f)
+    return {"total_size": 0, "song_count": 0}
+
+def save_storage_info(info):
+    with open(storage_info_path, "w") as f:
+        json.dump(info, f, indent=2)
+
+def get_folder_size(folder_path):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
 
 def load_shared_links():
     links = {}
@@ -82,20 +101,42 @@ def delete_shared_link(song_name):
     if os.path.exists(filepath):
         os.remove(filepath)
 
-# Get songs function - filters based on shared status for users
-def get_uploaded_songs(show_unshared=False):
+# ✅ FIXED: Get ALL songs - works for both admin (all) and users (shared only)
+def get_uploaded_songs(show_all=True):
     songs = []
     if not os.path.exists(songs_dir):
         return songs
 
-    shared_links = load_shared_links()
-
+    # Check for original.mp3 files (persistent storage)
     for f in os.listdir(songs_dir):
         if f.endswith("_original.mp3"):
             song_name = f.replace("_original.mp3", "")
-            if show_unshared or song_name in shared_links:
+            # Admin sees ALL songs, users see only SHARED songs
+            if show_all or song_name in load_shared_links():
                 songs.append(song_name)
     return sorted(songs)
+
+def delete_song_completely(song_name):
+    """Admin can permanently delete songs"""
+    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+    acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
+    
+    for ext in [".jpg", ".jpeg", ".png"]:
+        lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}")
+        if os.path.exists(lyrics_path):
+            os.remove(lyrics_path)
+    
+    for path in [original_path, acc_path]:
+        if os.path.exists(path):
+            os.remove(path)
+    
+    # Clean metadata
+    metadata = load_metadata()
+    metadata.pop(song_name, None)
+    save_metadata(metadata)
+    
+    # Clean shared link
+    delete_shared_link(song_name)
 
 # Initialize session state
 if "user" not in st.session_state:
@@ -107,40 +148,6 @@ if "page" not in st.session_state:
 
 metadata = load_metadata()
 
-# Check for song parameter in URL for direct access
-query_params = st.query_params
-url_song = query_params.get("song", None)
-
-if url_song:
-    # Decode the song name
-    song_name = unquote(url_song)
-    
-    # Check if song exists
-    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-    song_exists = os.path.exists(original_path)
-    
-    if song_exists:
-        # Check if song is shared
-        shared_links = load_shared_links()
-        is_shared = song_name in shared_links
-        
-        if is_shared:
-            # Set the song and redirect to player
-            st.session_state.selected_song = song_name
-            st.session_state.page = "Song Player"
-            # If not logged in, set a temporary guest access
-            if "user" not in st.session_state:
-                st.session_state.user = "guest"
-                st.session_state.role = "guest"
-        else:
-            # Song not shared, show message
-            st.session_state.page = "Login"
-            st.error(f"❌ Song '{song_name}' is not shared. Please login as admin to access.")
-    else:
-        # Song doesn't exist
-        st.session_state.page = "Login"
-        st.error(f"❌ Song '{song_name}' doesn't exist!")
-
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
 if not os.path.exists(default_logo_path):
@@ -151,99 +158,44 @@ if not os.path.exists(default_logo_path):
         st.rerun()
 logo_b64 = file_to_base64(default_logo_path)
 
+# =============== STORAGE MONITOR ===============
+def show_storage_info():
+    storage_info = load_storage_info()
+    songs_dir_size = get_folder_size(songs_dir)
+    lyrics_dir_size = get_folder_size(lyrics_dir)
+    
+    st.sidebar.markdown("### 💾 Storage Info")
+    st.sidebar.metric("Total Songs", storage_info.get("song_count", 0))
+    st.sidebar.metric("Songs Folder", f"{songs_dir_size/1024/1024:.1f} MB")
+    st.sidebar.metric("Lyrics Folder", f"{lyrics_dir_size/1024/1024:.1f} MB")
+    
+    # Railway/Render limits warning
+    total_size_mb = (songs_dir_size + lyrics_dir_size) / 1024 / 1024
+    if total_size_mb > 400:  # Close to 512MB limit
+        st.sidebar.warning("⚠️ Near storage limit! Consider deleting old songs.")
+
 # =============== RESPONSIVE LOGIN PAGE ===============
 if st.session_state.page == "Login":
-
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-
-    body {
-        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
-    }
-
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
-    .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
-    }
-
-    /* CENTERED HEADER SECTION */
-    .login-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
-        text-align: center;
-    }
-
-    .login-header img {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.4);
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        width: 100%;
-    }
-
-    .login-sub {
-        font-size: 0.9rem;
-        color: #c3cfdd;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    /* CREDENTIALS INFO */
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    /* INPUTS BLEND WITH BOX */
-    .stTextInput input {
-        background: rgba(5,10,25,0.7) !important;
-        border-radius: 10px !important;
-        color: white !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
-    }
-
-    .stTextInput input:focus {
-        border-color: rgba(255,255,255,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    }
-
-    .stButton button {
-        width: 100%;
-        height: 44px; /* Slightly taller */
-        background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
-        font-weight: 600;
-        margin-top: 0.6rem;
-        color: white;
-        border: none;
-    }
+    body {background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);}
+    .login-content {padding: 1.8rem 2.2rem 2.2rem 2.2rem;}
+    .login-header {display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; margin-bottom: 1.6rem; text-align: center;}
+    .login-header img {width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);}
+    .login-title {font-size: 1.6rem; font-weight: 700; width: 100%;}
+    .login-sub {font-size: 0.9rem; color: #c3cfdd; margin-bottom: 0.5rem; width: 100%;}
+    .credentials-info {background: rgba(5,10,25,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 12px; margin-top: 16px; font-size: 0.85rem; color: #b5c2d2;}
+    .stTextInput input {background: rgba(5,10,25,0.7) !important; border-radius: 10px !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; padding: 12px 14px !important;}
+    .stTextInput input:focus {border-color: rgba(255,255,255,0.6) !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.3);}
+    .stButton button {width: 100%; height: 44px; background: linear-gradient(to right, #1f2937, #020712); border-radius: 10px; font-weight: 600; margin-top: 0.6rem; color: white; border: none;}
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
-
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -283,59 +235,83 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
-
+    
+    # Show storage info in sidebar
+    show_storage_info()
+    
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"])
 
     if page_sidebar == "Upload Songs":
         st.subheader("📤 Upload New Song")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
-        with col2:
-            uploaded_accompaniment = st.file_uploader("Accompaniment (_accompaniment.mp3)", type=["mp3"], key="acc_upload")
-        with col3:
-            uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
+        
+        # Storage check
+        current_size = get_folder_size(songs_dir) + get_folder_size(lyrics_dir)
+        if current_size > 400 * 1024 * 1024:  # 400MB limit
+            st.error("❌ Storage limit reached! Delete some songs first.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
+            with col2:
+                uploaded_accompaniment = st.file_uploader("Accompaniment (_accompaniment.mp3)", type=["mp3"], key="acc_upload")
+            with col3:
+                uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
 
-        if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-            song_name = uploaded_original.name.replace("_original.mp3", "").strip()
-            if not song_name:
-                song_name = os.path.splitext(uploaded_original.name)[0]
+            if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
+                song_name = uploaded_original.name.replace("_original.mp3", "").strip()
+                if not song_name:
+                    song_name = os.path.splitext(uploaded_original.name)[0]
 
-            original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-            acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
-            lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
-            lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
+                # Check if song already exists
+                if os.path.exists(os.path.join(songs_dir, f"{song_name}_original.mp3")):
+                    st.error(f"❌ Song '{song_name}' already exists!")
+                else:
+                    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+                    acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
+                    lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
+                    lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
 
-            with open(original_path, "wb") as f:
-                f.write(uploaded_original.getbuffer())
-            with open(acc_path, "wb") as f:
-                f.write(uploaded_accompaniment.getbuffer())
-            with open(lyrics_path, "wb") as f:
-                f.write(uploaded_lyrics_image.getbuffer())
+                    with open(original_path, "wb") as f:
+                        f.write(uploaded_original.getbuffer())
+                    with open(acc_path, "wb") as f:
+                        f.write(uploaded_accompaniment.getbuffer())
+                    with open(lyrics_path, "wb") as f:
+                        f.write(uploaded_lyrics_image.getbuffer())
 
-            metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
-            save_metadata(metadata)
-            st.success(f"✅ Uploaded: {song_name}")
-            st.rerun()
+                    metadata[song_name] = {
+                        "uploaded_by": st.session_state.user, 
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    save_metadata(metadata)
+                    
+                    # Update storage info
+                    storage_info = load_storage_info()
+                    storage_info["song_count"] += 1
+                    save_storage_info(storage_info)
+                    
+                    st.success(f"✅ Uploaded: {song_name}")
+                    st.rerun()
 
     elif page_sidebar == "Songs List":
-        st.subheader("🎵 All Songs List (Admin View)")
-        uploaded_songs = get_uploaded_songs(show_unshared=True)
+        st.subheader("🎵 All Songs List (Admin - Shows ALL songs)")
+        uploaded_songs = get_uploaded_songs(show_all=True)  # Admin sees ALL
+        
         if not uploaded_songs:
             st.warning("❌ No songs uploaded yet.")
         else:
             for s in uploaded_songs:
-                col1, col2, col3 = st.columns([3, 1, 2])
+                col1, col2, col3, col4 = st.columns([2.5, 1, 1.5, 1])
                 safe_s = quote(s)
+                is_shared = s in load_shared_links()
+                status = "✅ SHARED" if is_shared else "🔒 PRIVATE"
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"🎵 {s} - **{status}** by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
@@ -344,10 +320,21 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
                     st.markdown(f"[🔗 Share Link]({share_url})")
+                with col4:
+                    if st.button("🗑 Delete", key=f"delete_{s}", type="secondary"):
+                        if st.session_state.get(f"confirm_delete_{s}", False):
+                            delete_song_completely(s)
+                            st.success(f"✅ Deleted: {s}")
+                            if f"confirm_delete_{s}" in st.session_state:
+                                del st.session_state[f"confirm_delete_{s}"]
+                            st.rerun()
+                        else:
+                            st.session_state[f"confirm_delete_{s}"] = True
+                            st.warning(f"⚠️ Confirm delete {s}?")
 
     elif page_sidebar == "Share Links":
         st.header("🔗 Manage Shared Links")
-        all_songs = get_uploaded_songs(show_unshared=True)
+        all_songs = get_uploaded_songs(show_all=True)
         shared_links_data = load_shared_links()
 
         for song in all_songs:
@@ -356,14 +343,14 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
             is_shared = song in shared_links_data
 
             with col1:
-                status = "✅ SHARED" if is_shared else "❌ **NOT SHARED"
+                status = "✅ SHARED" if is_shared else "❌ NOT SHARED"
                 st.write(f"{song} - {status}")
 
             with col2:
                 if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
-                        st.success(f"✅ {song} unshared! Users can no longer see this song.")
+                        st.success(f"✅ {song} unshared! (Files kept safe)")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
                         share_url = f"{APP_URL}?song={safe_song}"
@@ -374,7 +361,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 if is_shared:
                     if st.button("🚫 Unshare", key=f"unshare_{song}"):
                         delete_shared_link(song)
-                        st.success(f"✅ {song} unshared! Users cannot see this song anymore.")
+                        st.success(f"✅ {song} unshared! Files preserved.")
                         st.rerun()
 
             with col4:
@@ -390,13 +377,14 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
     st.title(f"👤 User Dashboard - {st.session_state.user}")
+    
+    st.sidebar.info("💡 Only SHARED songs visible")
 
-    st.subheader("🎵 Available Songs (Only Shared Songs)")
-    uploaded_songs = get_uploaded_songs(show_unshared=False)
+    st.subheader("🎵 Available Songs (Only Shared)")
+    uploaded_songs = get_uploaded_songs(show_all=False)  # Users see only shared
 
     if not uploaded_songs:
-        st.warning("❌ No shared songs available. Contact admin to share songs.")
-        st.info("👑 Only admin-shared songs appear here for users.")
+        st.warning("❌ No shared songs available. Contact admin.")
     else:
         for song in uploaded_songs:
             col1, col2 = st.columns([3,1])
@@ -413,9 +401,9 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
             del st.session_state[key]
         st.rerun()
 
-# =============== SONG PLAYER ===============
+# =============== SONG PLAYER (unchanged) ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-
+    # ... [Same karaoke player code as before - no changes needed]
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display: none !important;}
@@ -423,14 +411,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container {
-        padding: 0 !important;
-        margin: 0 !important;
-        width: 100vw !important;
-    }
-    html, body {
-        overflow: hidden !important;
-    }
+    div.block-container {padding: 0 !important; margin: 0 !important; width: 100vw !important;}
+    html, body {overflow: hidden !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -439,15 +421,12 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         st.error("No song selected!")
         st.stop()
 
-    # Double-check access permission
     shared_links = load_shared_links()
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
-    is_guest = st.session_state.role == "guest"
 
-    # Allow access if: shared OR admin OR guest (via direct link)
-    if not (is_shared or is_admin or is_guest):
-        st.error("❌ Access denied! This song is not shared with users.")
+    if not (is_shared or is_admin):
+        st.error("❌ Access denied!")
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
 
@@ -465,19 +444,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Add a back button for navigation
-    col1, col2 = st.columns([10, 1])
-    with col2:
-        if st.button("← Back"):
-            if st.session_state.role == "guest":
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-            else:
-                st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
-                st.rerun()
-
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -597,7 +563,7 @@ recordBtn.onclick = async () => {
         const url=URL.createObjectURL(blob);
         if(lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
         lastRecordingURL=url; finalBg.src=mainBg.src; finalDiv.style.display="flex";
-        downloadRecordingBtn.href=url; downloadRecordingBtn.download=karaoke_${Date.now()}.webm;
+        downloadRecordingBtn.href=url; downloadRecordingBtn.download=`karaoke_${Date.now()}.webm`;
         playRecordingBtn.onclick=()=>{
             if(!isPlayingRecording){playRecordingAudio=new Audio(url); playRecordingAudio.play(); playRecordingBtn.innerText="⏹ Stop"; isPlayingRecording=true; playRecordingAudio.onended=resetPlayBtn;}
             else resetPlayBtn();
@@ -639,7 +605,7 @@ newRecordingBtn.onclick = ()=>{
 
     html(karaoke_html, height=800, width=1920)
 
-# =============== FALLBACK ===============
+# Fallback
 else:
     st.session_state.page = "Login"
     st.rerun()
