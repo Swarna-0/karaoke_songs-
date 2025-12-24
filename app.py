@@ -1,20 +1,3 @@
-# Add this after your imports (at the top of the file)
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import FileResponse
-import mimetypes
-
-class StaticFileMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        if request.url.path.startswith("/media/"):
-            file_path = os.path.join(BASE_STORAGE, request.url.path[1:])  # Remove leading slash
-            if os.path.exists(file_path):
-                mime_type, _ = mimetypes.guess_type(file_path)
-                return FileResponse(file_path, media_type=mime_type)
-        return await call_next(request)
-
-# Add this to your Streamlit app
-app = st.get_option("server.app")
-app.add_middleware(StaticFileMiddleware)
 import streamlit as st
 import os
 import base64
@@ -60,19 +43,15 @@ def file_to_base64(path):
             return base64.b64encode(f.read()).decode()
     return ""
 
-def get_audio_url_path(song_name, file_type="original"):
-    """Get URL-friendly path for audio files"""
+def get_audio_base64(song_name, file_type="original"):
+    """Get base64 encoded audio data with caching"""
     if file_type == "original":
         filename = f"{song_name}_original.mp3"
     else:  # accompaniment
         filename = f"{song_name}_accompaniment.mp3"
     
-    # Create a unique cache-busting parameter based on file modification time
     filepath = os.path.join(songs_dir, filename)
-    if os.path.exists(filepath):
-        mod_time = int(os.path.getmtime(filepath))
-        return f"/media/songs/{filename}?v={mod_time}"
-    return ""
+    return file_to_base64(filepath)
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -483,9 +462,9 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
 
-    # Get audio file URLs instead of base64
-    original_url = get_audio_url_path(selected_song, "original")
-    accompaniment_url = get_audio_url_path(selected_song, "accompaniment")
+    # Get audio files as base64 (faster than URL method for small to medium files)
+    original_b64 = get_audio_base64(selected_song, "original")
+    accompaniment_b64 = get_audio_base64(selected_song, "accompaniment")
 
     lyrics_path = ""
     for ext in [".jpg", ".jpeg", ".png"]:
@@ -512,7 +491,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     with st.spinner("Loading song player..."):
         time.sleep(0.5)  # Small delay to show loading
 
-    # ✅ OPTIMIZED KARAOKE PLAYER WITH URL-BASED AUDIO LOADING
+    # ✅ OPTIMIZED KARAOKE PLAYER WITH BETTER PERFORMANCE
     karaoke_template = """
 <!doctype html>
 <html>
@@ -540,10 +519,10 @@ canvas {display:none;}
 <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
 <div id="status">Ready 🎤</div>
 <audio id="originalAudio" preload="auto">
-    <source src="%%ORIGINAL_URL%%" type="audio/mp3">
+    <source src="data:audio/mp3;base64,%%ORIGINAL_B64%%" type="audio/mp3">
 </audio>
 <audio id="accompaniment" preload="auto">
-    <source src="%%ACCOMP_URL%%" type="audio/mp3">
+    <source src="data:audio/mp3;base64,%%ACCOMP_B64%%" type="audio/mp3">
 </audio>
 <div class="controls">
 <button id="playBtn">▶ Play</button>
@@ -596,21 +575,11 @@ function hideLoading() {
 function preloadAudio() {
     console.log("Starting audio preload...");
     
-    // Create hidden audio elements to preload
-    const preloadOriginal = new Audio();
-    const preloadAccompaniment = new Audio();
-    
-    preloadOriginal.preload = "auto";
-    preloadAccompaniment.preload = "auto";
-    
-    preloadOriginal.src = originalAudio.querySelector('source').src;
-    preloadAccompaniment.src = accompanimentAudio.querySelector('source').src;
-    
-    // Wait for both audio files to load
+    // Set up event listeners for audio loading
     let originalLoaded = false;
     let accompanimentLoaded = false;
     
-    preloadOriginal.addEventListener('canplaythrough', function() {
+    originalAudio.addEventListener('canplaythrough', function() {
         originalLoaded = true;
         console.log("Original audio loaded");
         if (originalLoaded && accompanimentLoaded) {
@@ -621,7 +590,7 @@ function preloadAudio() {
         }
     });
     
-    preloadAccompaniment.addEventListener('canplaythrough', function() {
+    accompanimentAudio.addEventListener('canplaythrough', function() {
         accompanimentLoaded = true;
         console.log("Accompaniment audio loaded");
         if (originalLoaded && accompanimentLoaded) {
@@ -631,6 +600,10 @@ function preloadAudio() {
             recordBtn.disabled = false;
         }
     });
+    
+    // Start loading audio
+    originalAudio.load();
+    accompanimentAudio.load();
     
     // Set timeout to enable buttons even if loading takes time
     setTimeout(function() {
@@ -790,8 +763,8 @@ window.onload = function() {
 
     karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ORIGINAL_URL%%", original_url or "")
-    karaoke_html = karaoke_html.replace("%%ACCOMP_URL%%", accompaniment_url or "")
+    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
     html(karaoke_html, height=800, width=1920)
 
