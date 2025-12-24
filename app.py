@@ -5,7 +5,6 @@ import json
 from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
-import time
 
 PORT = int(os.environ.get("PORT", 8501))
 
@@ -20,10 +19,8 @@ USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
 # Base directories
-# ================= PERSISTENT STORAGE =================
-BASE_STORAGE = "/data" if os.path.exists("/data") else os.getcwd()
-
-media_dir = os.path.join(BASE_STORAGE, "media")
+base_dir = os.getcwd()
+media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
@@ -35,23 +32,12 @@ os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
 
-
 # Helper functions
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return ""
-
-def get_audio_base64(song_name, file_type="original"):
-    """Get base64 encoded audio data with caching"""
-    if file_type == "original":
-        filename = f"{song_name}_original.mp3"
-    else:  # accompaniment
-        filename = f"{song_name}_accompaniment.mp3"
-    
-    filepath = os.path.join(songs_dir, filename)
-    return file_to_base64(filepath)
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -117,40 +103,6 @@ if "page" not in st.session_state:
     st.session_state.page = "Login"
 
 metadata = load_metadata()
-
-# Check for song parameter in URL for direct access
-query_params = st.query_params
-url_song = query_params.get("song", None)
-
-if url_song:
-    # Decode the song name
-    song_name = unquote(url_song)
-    
-    # Check if song exists
-    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-    song_exists = os.path.exists(original_path)
-    
-    if song_exists:
-        # Check if song is shared
-        shared_links = load_shared_links()
-        is_shared = song_name in shared_links
-        
-        if is_shared:
-            # Set the song and redirect to player
-            st.session_state.selected_song = song_name
-            st.session_state.page = "Song Player"
-            # If not logged in, set a temporary guest access
-            if "user" not in st.session_state:
-                st.session_state.user = "guest"
-                st.session_state.role = "guest"
-        else:
-            # Song not shared, show message
-            st.session_state.page = "Login"
-            st.error(f"❌ Song '{song_name}' is not shared. Please login as admin to access.")
-    else:
-        # Song doesn't exist
-        st.session_state.page = "Login"
-        st.error(f"❌ Song '{song_name}' doesn't exist!")
 
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
@@ -454,17 +406,14 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     shared_links = load_shared_links()
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
-    is_guest = st.session_state.role == "guest"
 
-    # Allow access if: shared OR admin OR guest (via direct link)
-    if not (is_shared or is_admin or is_guest):
+    if not (is_shared or is_admin):
         st.error("❌ Access denied! This song is not shared with users.")
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
 
-    # Get audio files as base64 (faster than URL method for small to medium files)
-    original_b64 = get_audio_base64(selected_song, "original")
-    accompaniment_b64 = get_audio_base64(selected_song, "accompaniment")
+    original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
+    accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
     lyrics_path = ""
     for ext in [".jpg", ".jpeg", ".png"]:
@@ -473,25 +422,11 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             lyrics_path = p
             break
 
+    original_b64 = file_to_base64(original_path)
+    accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Add a back button for navigation
-    col1, col2 = st.columns([10, 1])
-    with col2:
-        if st.button("← Back"):
-            if st.session_state.role == "guest":
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-            else:
-                st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
-                st.rerun()
-
-    # Show loading message while preparing player
-    with st.spinner("Loading song player..."):
-        time.sleep(0.5)  # Small delay to show loading
-
-    # ✅ OPTIMIZED KARAOKE PLAYER WITH BETTER PERFORMANCE
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -505,31 +440,24 @@ body {background:#000; font-family:sans-serif; height:100vh; width:100vw; overfl
 #status {position:absolute; top:20px; width:100%; text-align:center; font-size:14px; color:#ccc; z-index:20;}
 .reel-bg {position:absolute; top:0; left:0; width:100%; height:85vh; object-fit:contain;}
 .controls {position:absolute; bottom:20%; width:100%; text-align:center; z-index:30;}
-button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:12px 25px; border-radius:25px; font-size:14px; margin:6px; cursor:pointer; min-width:120px;}
-button:hover {opacity:0.9; transform:scale(1.05); transition:all 0.2s;}
+button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:8px 20px; border-radius:25px; font-size:13px; margin:4px; cursor:pointer;}
 .final-output {position:fixed; width:100vw; height:100vh; top:0; left:0; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:999;}
 #logoImg {position:absolute; top:20px; left:20px; width:60px; opacity:0.6;}
 canvas {display:none;}
-.loading {position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; font-size:18px;}
 </style>
 </head>
 <body>
 <div class="reel-container" id="reelContainer">
-<img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%" onload="hideLoading()">
+<img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
 <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
 <div id="status">Ready 🎤</div>
-<audio id="originalAudio" preload="auto">
-    <source src="data:audio/mp3;base64,%%ORIGINAL_B64%%" type="audio/mp3">
-</audio>
-<audio id="accompaniment" preload="auto">
-    <source src="data:audio/mp3;base64,%%ACCOMP_B64%%" type="audio/mp3">
-</audio>
+<audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+<audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
 <div class="controls">
 <button id="playBtn">▶ Play</button>
 <button id="recordBtn">🎙 Record</button>
 <button id="stopBtn" style="display:none;">⏹ Stop</button>
 </div>
-<div id="loading" class="loading">Loading song... Please wait</div>
 </div>
 
 <div class="final-output" id="finalOutputDiv">
@@ -548,7 +476,6 @@ canvas {display:none;}
 <script>
 let mediaRecorder, recordedChunks = [], isRecording = false, playRecordingAudio = null, isPlayingRecording = false, lastRecordingURL = null;
 let audioContext, micSource, accSource, canvasRafId = null;
-let audioLoaded = false;
 
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
@@ -565,100 +492,22 @@ const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
 const logoImg = new Image(); logoImg.src = document.getElementById("logoImg").src;
-const loadingDiv = document.getElementById("loading");
-
-function hideLoading() {
-    loadingDiv.style.display = 'none';
-}
-
-// Preload audio for faster playback
-function preloadAudio() {
-    console.log("Starting audio preload...");
-    
-    // Set up event listeners for audio loading
-    let originalLoaded = false;
-    let accompanimentLoaded = false;
-    
-    originalAudio.addEventListener('canplaythrough', function() {
-        originalLoaded = true;
-        console.log("Original audio loaded");
-        if (originalLoaded && accompanimentLoaded) {
-            audioLoaded = true;
-            status.innerText = "Ready to play 🎤";
-            playBtn.disabled = false;
-            recordBtn.disabled = false;
-        }
-    });
-    
-    accompanimentAudio.addEventListener('canplaythrough', function() {
-        accompanimentLoaded = true;
-        console.log("Accompaniment audio loaded");
-        if (originalLoaded && accompanimentLoaded) {
-            audioLoaded = true;
-            status.innerText = "Ready to play 🎤";
-            playBtn.disabled = false;
-            recordBtn.disabled = false;
-        }
-    });
-    
-    // Start loading audio
-    originalAudio.load();
-    accompanimentAudio.load();
-    
-    // Set timeout to enable buttons even if loading takes time
-    setTimeout(function() {
-        if (!audioLoaded) {
-            console.log("Audio loading timeout - enabling buttons anyway");
-            audioLoaded = true;
-            status.innerText = "Ready to play 🎤";
-            playBtn.disabled = false;
-            recordBtn.disabled = false;
-        }
-    }, 2000);
-}
 
 async function ensureAudioContext() {
     if (!audioContext) audioContext = new (window.AudioContext||window.webkitAudioContext)();
     if (audioContext.state==="suspended") await audioContext.resume();
 }
 
-async function safePlay(audio){
-    try{
-        await ensureAudioContext();
-        // Add a small delay to ensure audio is ready
-        if (audio.readyState < 3) {
-            status.innerText = "Buffering...";
-            await new Promise(resolve => {
-                audio.addEventListener('canplay', resolve, {once: true});
-                setTimeout(resolve, 500);
-            });
-        }
-        await audio.play();
-        status.innerText = "🎵 Playing...";
-    }catch(e){
-        console.log("Play error:", e);
-        status.innerText = "Click play again";
-    }
-}
+async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
 
 playBtn.onclick = async () => {
-    if (!audioLoaded) {
-        status.innerText = "Audio still loading...";
-        return;
-    }
-    
     if (originalAudio.paused) {
-        originalAudio.currentTime = 0; 
-        accompanimentAudio.currentTime = 0;
-        await safePlay(originalAudio); 
-        await safePlay(accompanimentAudio);
-        playBtn.innerText="⏸ Pause"; 
-        status.innerText="🎵 Playing song...";
+        originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
+        await safePlay(originalAudio); await safePlay(accompanimentAudio);
+        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Playing song...";
     } else {
-        originalAudio.pause(); 
-        accompanimentAudio.pause();
-        playBtn.innerText="▶ Play"; 
-        status.innerText="⏸ Paused";
+        originalAudio.pause(); accompanimentAudio.pause();
+        playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
     }
 };
 
@@ -677,18 +526,11 @@ function drawCanvas() {
 }
 
 recordBtn.onclick = async () => {
-    if(isRecording) return; 
-    if (!audioLoaded) {
-        status.innerText = "Audio not loaded yet";
-        return;
-    }
-    
-    isRecording=true; 
-    recordedChunks=[];
+    if(isRecording) return; isRecording=true; recordedChunks=[];
     await ensureAudioContext();
     const micStream=await navigator.mediaDevices.getUserMedia({audio:true});
     micSource=audioContext.createMediaStreamSource(micStream);
-    const accRes=await fetch(accompanimentAudio.querySelector('source').src);
+    const accRes=await fetch(accompanimentAudio.src);
     const accBuf=await accRes.arrayBuffer();
     const accDecoded=await audioContext.decodeAudioData(accBuf);
     accSource=audioContext.createBufferSource(); accSource.buffer=accDecoded;
@@ -734,32 +576,12 @@ newRecordingBtn.onclick = ()=>{
     if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio=null;}
     playBtn.style.display="inline-block"; recordBtn.style.display="inline-block"; stopBtn.style.display="none"; playBtn.innerText="▶ Play"; status.innerText="Ready 🎤";
 };
-
-// Initialize player
-window.onload = function() {
-    // Disable buttons until audio loads
-    playBtn.disabled = true;
-    recordBtn.disabled = true;
-    status.innerText = "Loading audio...";
-    
-    // Start preloading audio
-    preloadAudio();
-    
-    // Enable buttons after a short delay as fallback
-    setTimeout(function() {
-        if (!audioLoaded) {
-            console.log("Fallback: enabling buttons");
-            audioLoaded = true;
-            playBtn.disabled = false;
-            recordBtn.disabled = false;
-            status.innerText = "Ready 🎤";
-        }
-    }, 3000);
-};
 </script>
 </body>
 </html>
 """
+
+
 
     karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
