@@ -3,8 +3,10 @@ import os
 import base64
 import json
 from streamlit.components.v1 import html
-import hashlib
 from urllib.parse import unquote, quote
+import hashlib
+print(hashlib.sha256("yourpassword".encode()).hexdigest())
+
 
 PORT = int(os.environ.get('PORT', 8501))
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
@@ -147,17 +149,20 @@ if st.session_state.page == "Login":
                 st.error("Enter both username and password")
             else:
                 hashedpass = hashpassword(password)
-                if username == "admin" and ADMINHASH and hashedpass == ADMINHASH:
+                if username == "admin" and ADMIN_HASH and hashedpass == ADMIN_HASH:
+
                     st.session_state.user = username
                     st.session_state.role = "admin"
                     st.session_state.page = "Admin Dashboard"
                     st.rerun()
-                elif username == "user1" and USER1HASH and hashedpass == USER1HASH:
+                elif username == "user1" and USER1_HASH and hashedpass == USER1_HASH:
+
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
                     st.rerun()
-                elif username == "user2" and USER2HASH and hashedpass == USER2HASH:
+                elif username == "user2" and USER2_HASH and hashedpass == USER2_HASH:
+
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
