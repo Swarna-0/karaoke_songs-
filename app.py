@@ -11,7 +11,7 @@ PORT = int(os.environ.get("PORT", 8501))
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-project-production.up.railway.app/"
+APP_URL = "https://karaoke-song.onrender.com/"
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -33,6 +33,7 @@ os.makedirs(songs_dir, exist_ok=True)
 os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
+
 
 # Helper functions
 def file_to_base64(path):
@@ -103,10 +104,42 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
-if "selected_song" not in st.session_state:
-    st.session_state.selected_song = None
 
 metadata = load_metadata()
+
+# Check for song parameter in URL for direct access
+query_params = st.query_params
+url_song = query_params.get("song", None)
+
+if url_song:
+    # Decode the song name
+    song_name = unquote(url_song)
+    
+    # Check if song exists
+    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+    song_exists = os.path.exists(original_path)
+    
+    if song_exists:
+        # Check if song is shared
+        shared_links = load_shared_links()
+        is_shared = song_name in shared_links
+        
+        if is_shared:
+            # Set the song and redirect to player
+            st.session_state.selected_song = song_name
+            st.session_state.page = "Song Player"
+            # If not logged in, set a temporary guest access
+            if "user" not in st.session_state:
+                st.session_state.user = "guest"
+                st.session_state.role = "guest"
+        else:
+            # Song not shared, show message
+            st.session_state.page = "Login"
+            st.error(f"❌ Song '{song_name}' is not shared. Please login as admin to access.")
+    else:
+        # Song doesn't exist
+        st.session_state.page = "Login"
+        st.error(f"❌ Song '{song_name}' doesn't exist!")
 
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
@@ -302,7 +335,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}**")
+                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}"):
                         st.session_state.selected_song = s
@@ -410,8 +443,10 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     shared_links = load_shared_links()
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
+    is_guest = st.session_state.role == "guest"
 
-    if not (is_shared or is_admin):
+    # Allow access if: shared OR admin OR guest (via direct link)
+    if not (is_shared or is_admin or is_guest):
         st.error("❌ Access denied! This song is not shared with users.")
         st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
         st.rerun()
@@ -430,7 +465,19 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ FIXED AUDIO PLAYBACK VERSION
+    # Add a back button for navigation
+    col1, col2 = st.columns([10, 1])
+    with col2:
+        if st.button("← Back"):
+            if st.session_state.role == "guest":
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+            else:
+                st.session_state.page = "User Dashboard" if st.session_state.role == "user" else "Admin Dashboard"
+                st.rerun()
+
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -444,10 +491,9 @@ body {background:#000; font-family:sans-serif; height:100vh; width:100vw; overfl
 #status {position:absolute; top:20px; width:100%; text-align:center; font-size:14px; color:#ccc; z-index:20;}
 .reel-bg {position:absolute; top:0; left:0; width:100%; height:85vh; object-fit:contain;}
 .controls {position:absolute; bottom:20%; width:100%; text-align:center; z-index:30;}
-button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:12px 24px; border-radius:25px; font-size:14px; margin:6px; cursor:pointer; font-weight:bold;}
-button:hover {opacity:0.9;}
-.final-output {position:fixed; width:100vw; height:100vh; top:0; left:0; background:rgba(0,0,0,0.95); display:none; justify-content:center; align-items:center; flex-direction:column; z-index:999; gap:15px;}
-#logoImg {position:absolute; top:20px; left:20px; width:60px; opacity:0.7;}
+button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:8px 20px; border-radius:25px; font-size:13px; margin:4px; cursor:pointer;}
+.final-output {position:fixed; width:100vw; height:100vh; top:0; left:0; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:999;}
+#logoImg {position:absolute; top:20px; left:20px; width:60px; opacity:0.6;}
 canvas {display:none;}
 </style>
 </head>
@@ -456,24 +502,23 @@ canvas {display:none;}
 <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
 <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
 <div id="status">Ready 🎤</div>
-<audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%" preload="auto"></audio>
-<audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%" preload="auto"></audio>
+<audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+<audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
 <div class="controls">
-<button id="playBtn">▶ Play Song</button>
-<button id="recordBtn">🎙 Start Recording</button>
-<button id="stopBtn" style="display:none;">⏹ Stop Recording</button>
+<button id="playBtn">▶ Play</button>
+<button id="recordBtn">🎙 Record</button>
+<button id="stopBtn" style="display:none;">⏹ Stop</button>
 </div>
 </div>
 
 <div class="final-output" id="finalOutputDiv">
-<div style="text-align:center;">
-<img class="reel-bg" id="finalBg" style="max-height:60vh;">
-</div>
-<div style="color:white;font-size:18px;margin-bottom:15px;">🎉 Recording Complete!</div>
-<div style="display:flex; gap:12px; align-items:center;">
+<div class="final-reel-container">
+<img class="reel-bg" id="finalBg">
+<div class="controls">
 <button id="playRecordingBtn">▶ Play Recording</button>
 <a id="downloadRecordingBtn" href="#" download><button>⬇ Download</button></a>
 <button id="newRecordingBtn">🔄 New Recording</button>
+</div>
 </div>
 </div>
 
@@ -482,7 +527,6 @@ canvas {display:none;}
 <script>
 let mediaRecorder, recordedChunks = [], isRecording = false, playRecordingAudio = null, isPlayingRecording = false, lastRecordingURL = null;
 let audioContext, micSource, accSource, canvasRafId = null;
-let isPlaying = false;
 
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
@@ -498,223 +542,91 @@ const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
 const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
-const logoImg = new Image(); 
-logoImg.src = "data:image/png;base64,%%LOGO_B64%%";
+const logoImg = new Image(); logoImg.src = document.getElementById("logoImg").src;
 
-// FIXED: Audio playback function
-async function playSong() {
-    try {
-        if (originalAudio.paused) {
-            // Reset both audios to start
-            originalAudio.currentTime = 0;
-            accompanimentAudio.currentTime = 0;
-            
-            // Start playing simultaneously
-            await originalAudio.play();
-            await accompanimentAudio.play();
-            
-            playBtn.innerText = "⏸ Pause Song";
-            status.innerText = "🎵 Playing song...";
-            isPlaying = true;
-        } else {
-            originalAudio.pause();
-            accompanimentAudio.pause();
-            playBtn.innerText = "▶ Play Song";
-            status.innerText = "⏸ Paused";
-            isPlaying = false;
-        }
-    } catch (error) {
-        console.log("Play error:", error);
-        status.innerText = "❌ Playback error - click again";
-    }
+async function ensureAudioContext() {
+    if (!audioContext) audioContext = new (window.AudioContext||window.webkitAudioContext)();
+    if (audioContext.state==="suspended") await audioContext.resume();
 }
 
-// Event listener for play button
-playBtn.addEventListener("click", playSong);
+async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
 
-// Draw canvas for recording
+playBtn.onclick = async () => {
+    if (originalAudio.paused) {
+        originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
+        await safePlay(originalAudio); await safePlay(accompanimentAudio);
+        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Playing song...";
+    } else {
+        originalAudio.pause(); accompanimentAudio.pause();
+        playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
+    }
+};
+
 function drawCanvas() {
-    ctx.fillStyle="#000"; 
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    
-    // Draw background image centered and scaled
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
     const canvasW=canvas.width, canvasH=canvas.height*0.85;
     const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
     const canvasRatio = canvasW / canvasH;
     let drawW, drawH;
-    
-    if(imgRatio > canvasRatio){
-        drawW = canvasW;
-        drawH = canvasW / imgRatio;
-    } else {
-        drawH = canvasH;
-        drawW = canvasH * imgRatio;
-    }
-    
-    const x = (canvasW - drawW) / 2;
-    const y = 0;
-    ctx.drawImage(mainBg, x, y, drawW, drawH);
-    
-    // Draw logo
-    ctx.globalAlpha=0.7; 
-    ctx.drawImage(logoImg, 20, 20, 60, 60); 
-    ctx.globalAlpha=1;
-    
-    canvasRafId = requestAnimationFrame(drawCanvas);
+    if(imgRatio>canvasRatio){drawW=canvasW; drawH=canvasW/imgRatio;}
+    else{drawH=canvasH; drawW=canvasH*imgRatio;}
+    const x=(canvasW-drawW)/2, y=0;
+    ctx.drawImage(mainBg,x,y,drawW,drawH);
+    ctx.globalAlpha=0.6; ctx.drawImage(logoImg,20,20,60,60); ctx.globalAlpha=1;
+    canvasRafId=requestAnimationFrame(drawCanvas);
 }
 
-// Start recording
 recordBtn.onclick = async () => {
-    if(isRecording) return; 
-    isRecording = true; 
-    recordedChunks = [];
-    
-    // Get microphone access
-    try {
-        const micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-        micSource = audioContext.createMediaStreamSource(micStream);
-        
-        // Load and play accompaniment
-        const accRes = await fetch(accompanimentAudio.src);
-        const accBuf = await accRes.arrayBuffer();
-        const accDecoded = await audioContext.decodeAudioData(accBuf);
-        accSource = audioContext.createBufferSource(); 
-        accSource.buffer = accDecoded;
-        
-        const destination = audioContext.createMediaStreamDestination();
-        micSource.connect(destination); 
-        accSource.connect(destination);
-        
-        accSource.start(); 
-        canvas.width = 1920; 
-        canvas.height = 1080; 
-        drawCanvas();
-        
-        // Combine canvas and audio streams
-        const stream = new MediaStream([
-            ...canvas.captureStream(30).getTracks(), 
-            ...destination.stream.getTracks()
-        ]);
-        
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => {
-            if(e.data.size > 0) recordedChunks.push(e.data);
+    if(isRecording) return; isRecording=true; recordedChunks=[];
+    await ensureAudioContext();
+    const micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    micSource=audioContext.createMediaStreamSource(micStream);
+    const accRes=await fetch(accompanimentAudio.src);
+    const accBuf=await accRes.arrayBuffer();
+    const accDecoded=await audioContext.decodeAudioData(accBuf);
+    accSource=audioContext.createBufferSource(); accSource.buffer=accDecoded;
+    const destination=audioContext.createMediaStreamDestination();
+    micSource.connect(destination); accSource.connect(destination);
+    accSource.start(); canvas.width=1920; canvas.height=1080; drawCanvas();
+    const stream=new MediaStream([...canvas.captureStream(30).getTracks(), ...destination.stream.getTracks()]);
+    mediaRecorder=new MediaRecorder(stream);
+    mediaRecorder.ondataavailable=e=>e.data.size&&recordedChunks.push(e.data);
+    mediaRecorder.onstop=()=>{
+        cancelAnimationFrame(canvasRafId);
+        const blob=new Blob(recordedChunks,{type:"video/webm"});
+        const url=URL.createObjectURL(blob);
+        if(lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
+        lastRecordingURL=url; finalBg.src=mainBg.src; finalDiv.style.display="flex";
+        downloadRecordingBtn.href=url; downloadRecordingBtn.download=karaoke_${Date.now()}.webm;
+        playRecordingBtn.onclick=()=>{
+            if(!isPlayingRecording){playRecordingAudio=new Audio(url); playRecordingAudio.play(); playRecordingBtn.innerText="⏹ Stop"; isPlayingRecording=true; playRecordingAudio.onended=resetPlayBtn;}
+            else resetPlayBtn();
         };
-        
-        mediaRecorder.onstop = () => {
-            cancelAnimationFrame(canvasRafId);
-            const blob = new Blob(recordedChunks, {type:"video/webm"});
-            const url = URL.createObjectURL(blob);
-            
-            if(lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
-            lastRecordingURL = url; 
-            finalBg.src = mainBg.src; 
-            finalDiv.style.display = "flex";
-            
-            downloadRecordingBtn.href = url; 
-            downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
-            
-            // Setup play recording button
-            playRecordingBtn.onclick = () => {
-                if(!isPlayingRecording){
-                    playRecordingAudio = new Audio(url); 
-                    playRecordingAudio.play(); 
-                    playRecordingBtn.innerText = "⏹ Stop Recording"; 
-                    isPlayingRecording = true; 
-                    playRecordingAudio.onended = () => {
-                        playRecordingBtn.innerText = "▶ Play Recording"; 
-                        isPlayingRecording = false;
-                    };
-                } else {
-                    playRecordingAudio.pause();
-                    playRecordingAudio.currentTime = 0;
-                    playRecordingBtn.innerText = "▶ Play Recording"; 
-                    isPlayingRecording = false;
-                }
-            };
-        };
-        
-        mediaRecorder.start();
-        
-        // Start playing the original song for karaoke
-        originalAudio.currentTime = 0;
-        accompanimentAudio.currentTime = 0;
-        
-        // Play both audios
-        await originalAudio.play();
-        await accompanimentAudio.play();
-        
-        // Update UI
-        playBtn.style.display = "none";
-        recordBtn.style.display = "none";
-        stopBtn.style.display = "inline-block";
-        status.innerText = "🎙 Recording...";
-        
-    } catch (error) {
-        console.error("Recording error:", error);
-        status.innerText = "❌ Microphone access denied";
-        isRecording = false;
-    }
-};
-
-// Stop recording
-stopBtn.onclick = () => {
-    if(!isRecording) return;
-    isRecording = false;
-    
-    try {
-        mediaRecorder.stop();
-    } catch(e) {}
-    
-    try {
-        accSource.stop();
-    } catch(e) {}
-    
-    // Pause audio
-    if(isPlaying) {
-        originalAudio.pause();
-        accompanimentAudio.pause();
-    }
-    
-    stopBtn.style.display = "none";
-    status.innerText = "⏳ Processing recording...";
-};
-
-// New recording
-newRecordingBtn.onclick = () => {
-    finalDiv.style.display = "none";
-    recordedChunks = [];
-    isRecording = false;
-    isPlayingRecording = false;
-    
-    // Reset audio
-    originalAudio.pause();
-    accompanimentAudio.pause();
-    originalAudio.currentTime = 0;
-    accompanimentAudio.currentTime = 0;
-    
-    if(playRecordingAudio){
-        playRecordingAudio.pause();
-        playRecordingAudio = null;
-    }
-    
-    // Reset UI
-    playBtn.style.display = "inline-block";
-    recordBtn.style.display = "inline-block";
-    stopBtn.style.display = "none";
-    playBtn.innerText = "▶ Play Song";
-    status.innerText = "Ready 🎤";
-    isPlaying = false;
-};
-
-// Initialize audio context when page loads
-window.addEventListener('load', () => {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    logoImg.onload = () => {
-        console.log("Logo loaded");
     };
-    console.log("Karaoke player loaded successfully");
-});
+    mediaRecorder.start();
+    originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
+    await safePlay(originalAudio); await safePlay(accompanimentAudio);
+    playBtn.style.display="none"; recordBtn.style.display="none"; stopBtn.style.display="inline-block"; status.innerText="🎙 Recording...";
+};
+
+stopBtn.onclick = () => {
+    if(!isRecording) return; isRecording=false;
+    try{mediaRecorder.stop();}catch{}
+    try{accSource.stop();}catch{}
+    originalAudio.pause(); accompanimentAudio.pause(); stopBtn.style.display="none"; status.innerText="⏹ Processing...";
+};
+
+function resetPlayBtn(){
+    if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio.currentTime=0;}
+    playRecordingBtn.innerText="▶ Play Recording"; isPlayingRecording=false;
+}
+
+newRecordingBtn.onclick = ()=>{
+    finalDiv.style.display="none"; recordedChunks=[]; isRecording=false; isPlayingRecording=false;
+    originalAudio.pause(); accompanimentAudio.pause(); originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
+    if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio=null;}
+    playBtn.style.display="inline-block"; recordBtn.style.display="inline-block"; stopBtn.style.display="none"; playBtn.innerText="▶ Play"; status.innerText="Ready 🎤";
+};
 </script>
 </body>
 </html>
