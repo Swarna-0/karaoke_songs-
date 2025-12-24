@@ -7,7 +7,8 @@ import hashlib
 from urllib.parse import unquote, quote
 
 PORT = int(os.environ.get('PORT', 8501))
-st.setpageconfig(page_title="sing-along", layout="wide")
+st.set_page_config(page_title="𝄞 sing-along", layout="wide")
+
 
 # CONFIG
 APPURL = "https://karaoke-project-production.up.railway.app"
