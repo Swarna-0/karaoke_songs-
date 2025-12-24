@@ -14,9 +14,9 @@ st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 APPURL = "https://karaoke-project-production.up.railway.app"
 
 # SECURITY - Environment Variables for Password Hashes
-ADMINHASH = os.getenv('ADMINHASH')
-USER1HASH = os.getenv('USER1HASH')
-USER2HASH = os.getenv('USER2HASH')
+ADMIN_HASH = os.getenv("ADMIN_HASH", "")
+USER1_HASH = os.getenv("USER1_HASH", "")
+USER2_HASH = os.getenv("USER2_HASH", "")
 
 # PERSISTENT STORAGE
 BASESTORAGE = "data" if os.path.exists("data") else os.getcwd()
