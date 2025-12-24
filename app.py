@@ -6,10 +6,12 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
+PORT = int(os.environ.get("PORT", 8501))
+
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-song.onrender.com/"
+APP_URL = "https://karaoke-project-production.up.railway.app/"
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -17,8 +19,10 @@ USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
 # Base directories
-base_dir = os.getcwd()
-media_dir = os.path.join(base_dir, "media")
+# ================= PERSISTENT STORAGE =================
+BASE_STORAGE = "/data" if os.path.exists("/data") else os.getcwd()
+
+media_dir = os.path.join(BASE_STORAGE, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
@@ -303,7 +307,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
             with open(lyrics_path, "wb") as f:
                 f.write(uploaded_lyrics_image.getbuffer())
 
-            metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
+            metadata[song_name] = {"uploaded_by": st.session_state.user}
             save_metadata(metadata)
             st.success(f"✅ Uploaded: {song_name}")
             st.rerun()
@@ -344,7 +348,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 st.write(f"**{song}** - {status}")
 
             with col2:
-                if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
+                if st.button("🔄 Toggle", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users can no longer see this song.")
@@ -447,59 +451,56 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # ✅ UPDATED KARAOKE TEMPLATE WITH WORKING PLAY BUTTON
     karaoke_template = """
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>🎤 Karaoke Reels</title>
+<meta charset="utf-8">
+<title>🎤 Karaoke Reels</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
-.reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
-#status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
-.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
-.lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
-.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
-button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
-button:active { transform: scale(0.95); }
-.final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
-#logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
-canvas { display: none; }
+* {margin:0; padding:0; box-sizing:border-box;}
+body {background:#000; font-family:sans-serif; height:100vh; width:100vw; overflow:hidden;}
+.reel-container {width:100%; height:100%; position:absolute; background:#111; overflow:hidden;}
+#status {position:absolute; top:20px; width:100%; text-align:center; font-size:14px; color:#ccc; z-index:20;}
+.reel-bg {position:absolute; top:0; left:0; width:100%; height:85vh; object-fit:contain;}
+.controls {position:absolute; bottom:20%; width:100%; text-align:center; z-index:30;}
+button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:8px 20px; border-radius:25px; font-size:13px; margin:4px; cursor:pointer;}
+button:hover {opacity:0.9; transform:scale(1.02);}
+.final-output {position:fixed; width:100vw; height:100vh; top:0; left:0; background:rgba(0,0,0,0.95); display:none; justify-content:center; align-items:center; z-index:999;}
+#logoImg {position:absolute; top:20px; left:20px; width:60px; opacity:0.6;}
+canvas {display:none;}
 </style>
 </head>
 <body>
-
 <div class="reel-container" id="reelContainer">
-    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
-    <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
-    <div id="status">Ready 🎤</div>
-    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
-    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
-    <div class="controls">
-      <button id="playBtn">▶ Play</button>
-      <button id="recordBtn">🎙 Record</button>
-      <button id="stopBtn" style="display:none;">⏹ Stop</button>
-    </div>
+<img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
+<img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
+<div id="status">Ready 🎤</div>
+<audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+<audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
+<div class="controls">
+<button id="playBtn">▶ Play</button>
+<button id="recordBtn">🎙 Record</button>
+<button id="stopBtn" style="display:none;">⏹ Stop</button>
+</div>
 </div>
 
 <div class="final-output" id="finalOutputDiv">
-  <div class="final-reel-container">
-    <img class="reel-bg" id="finalBg">
-    <div id="status"></div>
-    <div class="lyrics" id="finalLyrics"></div>
-    <div class="controls">
-      <button id="playRecordingBtn">▶ Play Recording</button>
-      <a id="downloadRecordingBtn" href="#" download>
-        <button>⬇ Download</button>
-      </a>
-      <button id="newRecordingBtn">🔄 New Recording</button>
-    </div>
-  </div>
+<div style="text-align:center;">
+<img class="reel-bg" id="finalBg" style="max-height:70vh;">
+<div id="finalStatus" style="color:white;margin:10px 0;">Recording Complete!</div>
+<div class="controls" style="position:relative;bottom:auto;margin-top:20px;">
+<button id="playRecordingBtn">▶ Play Recording</button>
+<a id="downloadRecordingBtn" href="#" download><button>⬇ Download</button></a>
+<button id="newRecordingBtn">🔄 New Recording</button>
+</div>
+</div>
 </div>
 
 <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
+
+// ... (Your HTML and CSS remain the same until the SCRIPT section) ...
 
 <script>
 /* ================== GLOBAL STATE ================== */
@@ -536,7 +537,7 @@ const ctx = canvas.getContext("2d");
 const logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
 
-/* ================== AUDIO CONTEXT FIX ================== */
+/* ================== AUDIO CONTEXT & PLAY/PAUSE FIX ================== */
 async function ensureAudioContext() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -546,48 +547,48 @@ async function ensureAudioContext() {
     }
 }
 
-/* ================== PLAY ORIGINAL - FIXED VERSION ================== */
+// FIXED: This function now handles BOTH audio elements
 playBtn.onclick = async () => {
-    try {
-        // Ensure audio context is active
-        await ensureAudioContext();
-        
-        if (originalAudio.paused) {
-            // Reset both audios to start
-            originalAudio.currentTime = 0;
-            accompanimentAudio.currentTime = 0;
-            
-            // Play both audios
-            await originalAudio.play();
+    await ensureAudioContext();
+
+    // Play both tracks if they are paused
+    if (originalAudio.paused && accompanimentAudio.paused) {
+        originalAudio.currentTime = 0;
+        accompanimentAudio.currentTime = 0;
+
+        try {
+            // Play accompaniment first (background music)
             await accompanimentAudio.play();
-            
-            // Update UI
+            // Then play original vocals
+            await originalAudio.play();
+
             playBtn.innerText = "⏸ Pause";
             status.innerText = "🎵 Playing song...";
-            
-            // Handle when song ends
-            originalAudio.onended = () => {
-                accompanimentAudio.pause();
-                playBtn.innerText = "▶ Play";
-                status.innerText = "Ready 🎤";
-            };
-            
-            accompanimentAudio.onended = () => {
-                originalAudio.pause();
-                playBtn.innerText = "▶ Play";
-                status.innerText = "Ready 🎤";
-            };
-        } else {
-            // Pause both audios
-            originalAudio.pause();
-            accompanimentAudio.pause();
-            playBtn.innerText = "▶ Play";
-            status.innerText = "⏸ Paused";
+        } catch (e) {
+            console.log("Play error (autoplay policy):", e);
+            status.innerText = "⚠ Click Play again";
         }
-    } catch (error) {
-        console.error("Play error:", error);
-        status.innerText = "⚠ Click Play again";
+    } 
+    // Pause both tracks if they are playing
+    else {
+        originalAudio.pause();
+        accompanimentAudio.pause();
+        playBtn.innerText = "▶ Play";
+        status.innerText = "⏸ Paused";
     }
+};
+
+// Sync both audio elements when one ends
+originalAudio.onended = () => {
+    accompanimentAudio.pause();
+    playBtn.innerText = "▶ Play";
+    status.innerText = "Ready 🎤";
+};
+
+accompanimentAudio.onended = () => {
+    originalAudio.pause();
+    playBtn.innerText = "▶ Play";
+    status.innerText = "Ready 🎤";
 };
 
 /* ================== CANVAS DRAW (DJANGO MATCH) ================== */
@@ -674,7 +675,14 @@ recordBtn.onclick = async () => {
         finalDiv.style.display = "flex";
 
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = "karaoke_" + Date.now() + ".webm";
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
+
+        // Reset main play button
+        playBtn.style.display = "inline-block";
+        playBtn.innerText = "▶ Play";
+        recordBtn.style.display = "inline-block";
+        stopBtn.style.display = "none";
+        status.innerText = "Ready 🎤";
 
         playRecordingBtn.onclick = () => {
             if (!isPlayingRecording) {
@@ -691,10 +699,16 @@ recordBtn.onclick = async () => {
 
     mediaRecorder.start();
 
+    // Start playback for recording
     originalAudio.currentTime = 0;
     accompanimentAudio.currentTime = 0;
-    await originalAudio.play();
-    await accompanimentAudio.play();
+    
+    try {
+        await accompanimentAudio.play();
+        await originalAudio.play();
+    } catch (e) {
+        console.log("Recording playback error:", e);
+    }
 
     playBtn.style.display = "none";
     recordBtn.style.display = "none";
@@ -752,8 +766,6 @@ newRecordingBtn.onclick = () => {
     status.innerText = "Ready 🎤";
 };
 </script>
-
-
 </body>
 </html>
 """
