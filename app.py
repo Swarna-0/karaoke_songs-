@@ -6,12 +6,10 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
-PORT = int(os.environ.get("PORT", 8501))
-
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-project-production.up.railway.app/"
+APP_URL = "https://karaoke-song.onrender.com/"
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -19,10 +17,8 @@ USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
 # Base directories
-# ================= PERSISTENT STORAGE =================
-BASE_STORAGE = "/data" if os.path.exists("/data") else os.getcwd()
-
-media_dir = os.path.join(BASE_STORAGE, "media")
+base_dir = os.getcwd()
+media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
 lyrics_dir = os.path.join(media_dir, "lyrics_images")
 logo_dir = os.path.join(media_dir, "logo")
@@ -451,7 +447,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ UPDATED KARAOKE TEMPLATE WITH WORKING PLAY BUTTON
+    # ✅ WORKING KARAOKE TEMPLATE WITH PLAY BUTTON FIXED
     karaoke_template = """
 <!doctype html>
 <html>
@@ -536,12 +532,10 @@ playBtn.onclick = async () => {
         
         if (originalAudio.paused) {
             // Start both audios at the same time
-            const playTime = audioContext.currentTime + 0.1;
-            
             originalAudio.currentTime = 0;
             accompanimentAudio.currentTime = 0;
             
-            // Use a small timeout to ensure both audios are ready
+            // Play both audios
             await originalAudio.play().catch(e => console.log("Original play error:", e));
             await accompanimentAudio.play().catch(e => console.log("Accompaniment play error:", e));
             
