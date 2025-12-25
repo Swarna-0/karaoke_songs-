@@ -360,16 +360,18 @@ logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path
 
 # =============== CHECK FOR DIRECT SONG LINK ===============
 @st.cache_data(ttl=5, show_spinner=False)
-def check_direct_song_link(query_params):
+def check_direct_song_link(_query_params):
     """Check if there's a direct song link in query params"""
-    if "song" in query_params:
-        song_from_url = unquote(query_params["song"])
+    # Convert query_params to dict to make it hashable
+    query_dict = dict(_query_params)
+    if "song" in query_dict:
+        song_from_url = unquote(query_dict["song"])
         shared_links = load_shared_links_cached()
         if song_from_url in shared_links:
             return song_from_url
     return None
 
-# Check direct song link
+# Check direct song link - pass st.query_params with underscore
 direct_song = check_direct_song_link(st.query_params)
 if direct_song and st.session_state.page == "Login":
     st.session_state.selected_song = direct_song
@@ -471,13 +473,21 @@ if st.session_state.page == "Login":
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
 
         # Header with better spacing
-        st.markdown(f"""
-        <div class="login-header">
-            <img src="data:image/png;base64,{logo_b64}">
-            <div class="login-title">𝄞 Karaoke Reels</div>
-            <div class="login-sub">Login to continue</div>
-        </div>
-        """, unsafe_allow_html=True)
+        if logo_b64:
+            st.markdown(f"""
+            <div class="login-header">
+                <img src="data:image/png;base64,{logo_b64}">
+                <div class="login-title">𝄞 Karaoke Reels</div>
+                <div class="login-sub">Login to continue</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="login-header">
+                <div class="login-title">𝄞 Karaoke Reels</div>
+                <div class="login-sub">Login to continue</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         username = st.text_input("Email / Username", placeholder="admin / user1 / user2", value="", key="login_username")
         password = st.text_input("Password", type="password", placeholder="Enter password", value="", key="login_password")
@@ -705,7 +715,11 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
 
     # Load files with caching
     @st.cache_data(ttl=3600, show_spinner=False)
-    def load_audio_files(song_name):
+    def load_audio_files(_song_name):
+        """Cache audio files loading for better performance"""
+        original_path, accompaniment_path = get_audio_file_paths(_song_name)
+        lyrics_path = get_lyrics_image_path(_song_name)
+        
         original_b64 = file_to_base64(original_path)
         accompaniment_b64 = file_to_base64(accompaniment_path)
         lyrics_b64 = file_to_base64(lyrics_path) if lyrics_path else ""
@@ -730,6 +744,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎤 {selected_song} - Karaoke Reels</title>
     <style>
         body {{
@@ -738,6 +753,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             background: #000;
             font-family: Arial, sans-serif;
             overflow: hidden;
+            width: 100vw;
+            height: 100vh;
         }}
         #playerContainer {{
             width: 100vw;
@@ -747,10 +764,11 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             align-items: center;
             justify-content: center;
             background: #111;
+            position: relative;
         }}
         #lyricsImage {{
-            max-width: 90%;
-            max-height: 70vh;
+            max-width: 95%;
+            max-height: 75vh;
             object-fit: contain;
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -761,6 +779,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             gap: 15px;
             flex-wrap: wrap;
             justify-content: center;
+            padding: 10px;
         }}
         button {{
             background: linear-gradient(135deg, #ff0066, #ff66cc);
@@ -773,6 +792,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 5px 15px rgba(255,0,128,0.4);
+            min-width: 180px;
         }}
         button:hover {{
             transform: translateY(-2px);
@@ -787,6 +807,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             font-size: 18px;
             text-align: center;
             min-height: 30px;
+            padding: 0 20px;
         }}
         .hidden {{
             display: none;
@@ -796,27 +817,33 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             top: 20px;
             left: 20px;
             width: 50px;
+            height: 50px;
             opacity: 0.7;
+            z-index: 10;
+        }}
+        audio {{
+            display: none;
         }}
     </style>
 </head>
 <body>
-    <img id="logo" src="data:image/png;base64,{logo_b64}">
+    {f'<img id="logo" src="data:image/png;base64,{logo_b64}">' if logo_b64 else ''}
     <div id="playerContainer">
-        <img id="lyricsImage" src="data:image/jpeg;base64,{lyrics_b64}">
+        {f'<img id="lyricsImage" src="data:image/jpeg;base64,{lyrics_b64}" onload="audioPreload()">' if lyrics_b64 else '<div id="status">No lyrics image available</div>'}
         <div id="status">Ready to play 🎤</div>
         <div class="controls">
             <button onclick="playOriginal()">▶ Play Original</button>
             <button onclick="startRecording()">🎤 Start Recording</button>
-            <button onclick="stopRecording()" class="hidden" id="stopBtn">⏹ Stop</button>
+            <button onclick="stopRecording()" class="hidden" id="stopBtn">⏹ Stop Recording</button>
             <button onclick="playRecording()" class="hidden" id="playRecBtn">▶ Play Recording</button>
+            <button onclick="downloadRecording()" class="hidden" id="downloadBtn">⬇ Download</button>
         </div>
         
-        <audio id="originalAudio" preload="auto">
+        <audio id="originalAudio" preload="auto" controlsList="nodownload">
             <source src="data:audio/mp3;base64,{original_b64}" type="audio/mp3">
         </audio>
         
-        <audio id="accompanimentAudio" preload="auto">
+        <audio id="accompanimentAudio" preload="auto" controlsList="nodownload">
             <source src="data:audio/mp3;base64,{accompaniment_b64}" type="audio/mp3">
         </audio>
     </div>
@@ -828,6 +855,13 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
         let recordedChunks = [];
         let recordingUrl = null;
         let isRecording = false;
+        let audioContext;
+        
+        function audioPreload() {{
+            // Preload audio when image loads
+            originalAudio.load();
+            accompanimentAudio.load();
+        }}
         
         function updateStatus(text) {{
             document.getElementById('status').textContent = text;
@@ -837,14 +871,19 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             try {{
                 if (originalAudio.paused) {{
                     originalAudio.currentTime = 0;
-                    originalAudio.play();
-                    updateStatus('🎵 Playing original...');
+                    originalAudio.play().then(() => {{
+                        updateStatus('🎵 Playing original...');
+                    }}).catch(e => {{
+                        updateStatus('❌ Playback failed. Click play again.');
+                        console.error('Play error:', e);
+                    }});
                 }} else {{
                     originalAudio.pause();
                     updateStatus('⏸ Paused');
                 }}
             }} catch (error) {{
-                updateStatus('❌ Playback error: ' + error.message);
+                updateStatus('❌ Playback error');
+                console.error(error);
             }}
         }}
         
@@ -853,6 +892,9 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             
             try {{
                 updateStatus('🎤 Starting recording...');
+                
+                // Initialize audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
                 // Start both audios
                 originalAudio.currentTime = 0;
@@ -863,7 +905,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                     accompanimentAudio.play()
                 ]);
                 
-                // Start recording mic and audio
+                // Start recording mic
                 const stream = await navigator.mediaDevices.getUserMedia({{
                     audio: {{
                         echoCancellation: true,
@@ -872,7 +914,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                     }}
                 }});
                 
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const micSource = audioContext.createMediaStreamSource(stream);
                 
                 // Create destination for mixed audio
@@ -880,7 +921,10 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                 micSource.connect(destination);
                 
                 // Start recording
-                mediaRecorder = new MediaRecorder(destination.stream);
+                mediaRecorder = new MediaRecorder(destination.stream, {{
+                    mimeType: 'audio/webm;codecs=opus'
+                }});
+                
                 recordedChunks = [];
                 
                 mediaRecorder.ondataavailable = (event) => {{
@@ -895,14 +939,20 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                     recordingUrl = URL.createObjectURL(blob);
                     
                     document.getElementById('playRecBtn').classList.remove('hidden');
+                    document.getElementById('downloadBtn').classList.remove('hidden');
                     updateStatus('✅ Recording complete!');
                     
                     // Stop audios
                     originalAudio.pause();
                     accompanimentAudio.pause();
+                    
+                    // Close audio context
+                    if (audioContext && audioContext.state !== 'closed') {{
+                        audioContext.close();
+                    }}
                 }};
                 
-                mediaRecorder.start();
+                mediaRecorder.start(100); // Collect data every 100ms
                 isRecording = true;
                 
                 document.getElementById('stopBtn').classList.remove('hidden');
@@ -910,6 +960,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                 
             }} catch (error) {{
                 updateStatus('❌ Recording error: ' + error.message);
+                console.error('Recording error:', error);
             }}
         }}
         
@@ -929,12 +980,27 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             if (!recordingUrl) return;
             
             const audio = new Audio(recordingUrl);
-            audio.play();
-            updateStatus('▶ Playing your recording...');
+            audio.play().then(() => {{
+                updateStatus('▶ Playing your recording...');
+            }}).catch(e => {{
+                updateStatus('❌ Playback failed');
+            }});
             
             audio.onended = () => {{
                 updateStatus('✅ Recording playback complete!');
             }};
+        }}
+        
+        function downloadRecording() {{
+            if (!recordingUrl) return;
+            
+            const a = document.createElement('a');
+            a.href = recordingUrl;
+            a.download = 'karaoke_recording_' + new Date().getTime() + '.webm';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            updateStatus('⬇ Download started...');
         }}
         
         // Handle page visibility change
@@ -944,11 +1010,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             }}
         }});
         
-        // Preload audios for faster playback
-        window.addEventListener('load', () => {{
-            originalAudio.load();
-            accompanimentAudio.load();
-        }});
+        // Preload audio on page load
+        window.addEventListener('load', audioPreload);
     </script>
 </body>
 </html>
@@ -971,6 +1034,7 @@ if st.session_state.get("role") == "admin" and st.sidebar.checkbox("Show Debug I
     st.sidebar.write(f"Role: {st.session_state.get('role')}")
     st.sidebar.write(f"Selected Song: {st.session_state.get('selected_song')}")
     st.sidebar.write(f"Session ID: {st.session_state.get('session_id')}")
+    st.sidebar.write(f"Query Params: {dict(st.query_params)}")
     
     if st.sidebar.button("Force Reset", key="debug_reset"):
         for key in list(st.session_state.keys()):
