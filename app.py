@@ -6,8 +6,6 @@ from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
 
-PORT = int(os.environ.get("PORT", 8501))
-
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
 # --------- CONFIG: set your deployed app URL here ----------
@@ -431,157 +429,295 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
-<title>🎤 Karaoke Reels</title>
+  <meta charset="utf-8" />
+  <title>🎤 Karaoke Reels</title>
 <style>
-* {margin:0; padding:0; box-sizing:border-box;}
-body {background:#000; font-family:sans-serif; height:100vh; width:100vw; overflow:hidden;}
-.reel-container {width:100%; height:100%; position:absolute; background:#111; overflow:hidden;}
-#status {position:absolute; top:20px; width:100%; text-align:center; font-size:14px; color:#ccc; z-index:20;}
-.reel-bg {position:absolute; top:0; left:0; width:100%; height:85vh; object-fit:contain;}
-.controls {position:absolute; bottom:20%; width:100%; text-align:center; z-index:30;}
-button {background:linear-gradient(135deg, #ff0066, #ff66cc); border:none; color:white; padding:8px 20px; border-radius:25px; font-size:13px; margin:4px; cursor:pointer;}
-.final-output {position:fixed; width:100vw; height:100vh; top:0; left:0; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:999;}
-#logoImg {position:absolute; top:20px; left:20px; width:60px; opacity:0.6;}
-canvas {display:none;}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
+.reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
+#status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
+.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
+.lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
+.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
+button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
+button:active { transform: scale(0.95); }
+.final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
+#logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
+canvas { display: none; }
 </style>
 </head>
 <body>
+
 <div class="reel-container" id="reelContainer">
-<img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
-<img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
-<div id="status">Ready 🎤</div>
-<audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
-<audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
-<div class="controls">
-<button id="playBtn">▶ Play</button>
-<button id="recordBtn">🎙 Record</button>
-<button id="stopBtn" style="display:none;">⏹ Stop</button>
-</div>
+    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
+    <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
+    <div id="status">Ready 🎤</div>
+    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
+    <div class="controls">
+      <button id="playBtn">▶ Play</button>
+      <button id="recordBtn">🎙 Record</button>
+      <button id="stopBtn" style="display:none;">⏹ Stop</button>
+    </div>
 </div>
 
 <div class="final-output" id="finalOutputDiv">
-<div class="final-reel-container">
-<img class="reel-bg" id="finalBg">
-<div class="controls">
-<button id="playRecordingBtn">▶ Play Recording</button>
-<a id="downloadRecordingBtn" href="#" download><button>⬇ Download</button></a>
-<button id="newRecordingBtn">🔄 New Recording</button>
-</div>
-</div>
+  <div class="final-reel-container">
+    <img class="reel-bg" id="finalBg">
+    <div id="status"></div>
+    <div class="lyrics" id="finalLyrics"></div>
+    <div class="controls">
+      <button id="playRecordingBtn">▶ Play Recording</button>
+      <a id="downloadRecordingBtn" href="#" download>
+        <button>⬇ Download</button>
+      </a>
+      <button id="newRecordingBtn">🔄 New Recording</button>
+    </div>
+  </div>
 </div>
 
 <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
 
 <script>
-let mediaRecorder, recordedChunks = [], isRecording = false, playRecordingAudio = null, isPlayingRecording = false, lastRecordingURL = null;
-let audioContext, micSource, accSource, canvasRafId = null;
+/* ================== GLOBAL STATE ================== */
+let mediaRecorder;
+let recordedChunks = [];
+let playRecordingAudio = null;
+let lastRecordingURL = null;
 
+let audioContext, micSource, accSource;
+let canvasRafId = null;
+let isRecording = false;
+let isPlayingRecording = false;
+
+/* ================== ELEMENTS ================== */
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
 const stopBtn = document.getElementById("stopBtn");
 const status = document.getElementById("status");
+
 const originalAudio = document.getElementById("originalAudio");
 const accompanimentAudio = document.getElementById("accompaniment");
+
 const finalDiv = document.getElementById("finalOutputDiv");
 const mainBg = document.getElementById("mainBg");
 const finalBg = document.getElementById("finalBg");
+
 const playRecordingBtn = document.getElementById("playRecordingBtn");
 const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
 const newRecordingBtn = document.getElementById("newRecordingBtn");
+
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
-const logoImg = new Image(); logoImg.src = document.getElementById("logoImg").src;
 
+const logoImg = new Image();
+logoImg.src = document.getElementById("logoImg").src;
+
+/* ================== AUDIO CONTEXT FIX ================== */
 async function ensureAudioContext() {
-    if (!audioContext) audioContext = new (window.AudioContext||window.webkitAudioContext)();
-    if (audioContext.state==="suspended") await audioContext.resume();
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === "suspended") {
+        await audioContext.resume();
+    }
 }
 
-async function safePlay(audio){try{await ensureAudioContext(); await audio.play();}catch(e){console.log(e);}}
+async function safePlay(audio) {
+    try {
+        await ensureAudioContext();
+        await audio.play();
+    } catch (e) {
+        console.log("Autoplay blocked:", e);
+    }
+}
 
+document.addEventListener("visibilitychange", async () => {
+    if (!document.hidden) await ensureAudioContext();
+});
+
+/* ================== PLAY ORIGINAL ================== */
 playBtn.onclick = async () => {
+    await ensureAudioContext();
     if (originalAudio.paused) {
-        originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
-        await safePlay(originalAudio); await safePlay(accompanimentAudio);
-        playBtn.innerText="⏸ Pause"; status.innerText="🎵 Playing song...";
+        originalAudio.currentTime = 0;
+        await safePlay(originalAudio);
+        playBtn.innerText = "⏸ Pause";
+        status.innerText = "🎵 Playing song...";
     } else {
-        originalAudio.pause(); accompanimentAudio.pause();
-        playBtn.innerText="▶ Play"; status.innerText="⏸ Paused";
+        originalAudio.pause();
+        playBtn.innerText = "▶ Play";
+        status.innerText = "⏸ Paused";
     }
 };
 
+/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
 function drawCanvas() {
-    ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
-    const canvasW=canvas.width, canvasH=canvas.height*0.85;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const canvasW = canvas.width;
+    const canvasH = canvas.height * 0.85;
+
     const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
     const canvasRatio = canvasW / canvasH;
+
     let drawW, drawH;
-    if(imgRatio>canvasRatio){drawW=canvasW; drawH=canvasW/imgRatio;}
-    else{drawH=canvasH; drawW=canvasH*imgRatio;}
-    const x=(canvasW-drawW)/2, y=0;
-    ctx.drawImage(mainBg,x,y,drawW,drawH);
-    ctx.globalAlpha=0.6; ctx.drawImage(logoImg,20,20,60,60); ctx.globalAlpha=1;
-    canvasRafId=requestAnimationFrame(drawCanvas);
+    if (imgRatio > canvasRatio) {
+        drawW = canvasW;
+        drawH = canvasW / imgRatio;
+    } else {
+        drawH = canvasH;
+        drawW = canvasH * imgRatio;
+    }
+
+    const x = (canvasW - drawW) / 2;
+    const y = 0; // TOP aligned
+
+    ctx.drawImage(mainBg, x, y, drawW, drawH);
+
+    /* LOGO — exact Django feel */
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(logoImg, 20, 20, 60, 60);
+    ctx.globalAlpha = 1;
+
+    canvasRafId = requestAnimationFrame(drawCanvas);
 }
 
+/* ================== RECORD ================== */
 recordBtn.onclick = async () => {
-    if(isRecording) return; isRecording=true; recordedChunks=[];
+    if (isRecording) return;
+    isRecording = true;
+
     await ensureAudioContext();
-    const micStream=await navigator.mediaDevices.getUserMedia({audio:true});
-    micSource=audioContext.createMediaStreamSource(micStream);
-    const accRes=await fetch(accompanimentAudio.src);
-    const accBuf=await accRes.arrayBuffer();
-    const accDecoded=await audioContext.decodeAudioData(accBuf);
-    accSource=audioContext.createBufferSource(); accSource.buffer=accDecoded;
-    const destination=audioContext.createMediaStreamDestination();
-    micSource.connect(destination); accSource.connect(destination);
-    accSource.start(); canvas.width=1920; canvas.height=1080; drawCanvas();
-    const stream=new MediaStream([...canvas.captureStream(30).getTracks(), ...destination.stream.getTracks()]);
-    mediaRecorder=new MediaRecorder(stream);
-    mediaRecorder.ondataavailable=e=>e.data.size&&recordedChunks.push(e.data);
-    mediaRecorder.onstop=()=>{
+    recordedChunks = [];
+
+    /* MIC */
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micSource = audioContext.createMediaStreamSource(micStream);
+
+    /* ACCOMPANIMENT */
+    const accRes = await fetch(accompanimentAudio.src);
+    const accBuf = await accRes.arrayBuffer();
+    const accDecoded = await audioContext.decodeAudioData(accBuf);
+
+    accSource = audioContext.createBufferSource();
+    accSource.buffer = accDecoded;
+
+    const destination = audioContext.createMediaStreamDestination();
+    micSource.connect(destination);
+    accSource.connect(destination);
+
+    accSource.start();
+
+    canvas.width = 1920;
+    canvas.height = 1080;
+    drawCanvas();
+
+    const stream = new MediaStream([
+        ...canvas.captureStream(30).getTracks(),
+        ...destination.stream.getTracks()
+    ]);
+
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => e.data.size && recordedChunks.push(e.data);
+
+    mediaRecorder.onstop = () => {
         cancelAnimationFrame(canvasRafId);
-        const blob=new Blob(recordedChunks,{type:"video/webm"});
-        const url=URL.createObjectURL(blob);
-        if(lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
-        lastRecordingURL=url; finalBg.src=mainBg.src; finalDiv.style.display="flex";
-        downloadRecordingBtn.href=url; downloadRecordingBtn.download=karaoke_${Date.now()}.webm;
-        playRecordingBtn.onclick=()=>{
-            if(!isPlayingRecording){playRecordingAudio=new Audio(url); playRecordingAudio.play(); playRecordingBtn.innerText="⏹ Stop"; isPlayingRecording=true; playRecordingAudio.onended=resetPlayBtn;}
-            else resetPlayBtn();
+
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+
+        if (lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
+        lastRecordingURL = url;
+
+        finalBg.src = mainBg.src;
+        finalDiv.style.display = "flex";
+
+        downloadRecordingBtn.href = url;
+        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
+
+        playRecordingBtn.onclick = () => {
+            if (!isPlayingRecording) {
+                playRecordingAudio = new Audio(url);
+                playRecordingAudio.play();
+                playRecordingBtn.innerText = "⏹ Stop";
+                isPlayingRecording = true;
+                playRecordingAudio.onended = resetPlayBtn;
+            } else {
+                resetPlayBtn();
+            }
         };
     };
+
     mediaRecorder.start();
-    originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
-    await safePlay(originalAudio); await safePlay(accompanimentAudio);
-    playBtn.style.display="none"; recordBtn.style.display="none"; stopBtn.style.display="inline-block"; status.innerText="🎙 Recording...";
+
+    originalAudio.currentTime = 0;
+    accompanimentAudio.currentTime = 0;
+    await safePlay(originalAudio);
+    await safePlay(accompanimentAudio);
+
+    playBtn.style.display = "none";
+    recordBtn.style.display = "none";
+    stopBtn.style.display = "inline-block";
+    status.innerText = "🎙 Recording...";
 };
 
+/* ================== STOP ================== */
 stopBtn.onclick = () => {
-    if(!isRecording) return; isRecording=false;
-    try{mediaRecorder.stop();}catch{}
-    try{accSource.stop();}catch{}
-    originalAudio.pause(); accompanimentAudio.pause(); stopBtn.style.display="none"; status.innerText="⏹ Processing...";
+    if (!isRecording) return;
+    isRecording = false;
+
+    try { mediaRecorder.stop(); } catch {}
+    try { accSource.stop(); } catch {}
+
+    originalAudio.pause();
+    accompanimentAudio.pause();
+
+    stopBtn.style.display = "none";
+    status.innerText = "⏹ Processing...";
 };
 
-function resetPlayBtn(){
-    if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio.currentTime=0;}
-    playRecordingBtn.innerText="▶ Play Recording"; isPlayingRecording=false;
+/* ================== HELPERS ================== */
+function resetPlayBtn() {
+    if (playRecordingAudio) {
+        playRecordingAudio.pause();
+        playRecordingAudio.currentTime = 0;
+    }
+    playRecordingBtn.innerText = "▶ Play Recording";
+    isPlayingRecording = false;
 }
 
-newRecordingBtn.onclick = ()=>{
-    finalDiv.style.display="none"; recordedChunks=[]; isRecording=false; isPlayingRecording=false;
-    originalAudio.pause(); accompanimentAudio.pause(); originalAudio.currentTime=0; accompanimentAudio.currentTime=0;
-    if(playRecordingAudio){playRecordingAudio.pause(); playRecordingAudio=null;}
-    playBtn.style.display="inline-block"; recordBtn.style.display="inline-block"; stopBtn.style.display="none"; playBtn.innerText="▶ Play"; status.innerText="Ready 🎤";
+/* ================== NEW RECORDING ================== */
+newRecordingBtn.onclick = () => {
+    finalDiv.style.display = "none";
+
+    recordedChunks = [];
+    isRecording = false;
+    isPlayingRecording = false;
+
+    originalAudio.pause();
+    accompanimentAudio.pause();
+    originalAudio.currentTime = 0;
+    accompanimentAudio.currentTime = 0;
+
+    if (playRecordingAudio) {
+        playRecordingAudio.pause();
+        playRecordingAudio = null;
+    }
+
+    playBtn.style.display = "inline-block";
+    recordBtn.style.display = "inline-block";
+    stopBtn.style.display = "none";
+    playBtn.innerText = "▶ Play";
+    status.innerText = "Ready 🎤";
 };
 </script>
+
+
 </body>
 </html>
 """
-
-
 
     karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
