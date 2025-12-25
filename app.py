@@ -8,12 +8,12 @@ from urllib.parse import unquote, quote
 import time
 import sqlite3
 from datetime import datetime
-import mimetypes
+import uuid
 
-st.set_page_config(page_title="𝄞 sing-along", layout="wide")
+st.set_page_config(page_title="𝄞 sing-along", layout="wide", initial_sidebar_state="collapsed")
 
 # --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-song.onrender.com/"
+APP_URL = "https://karaoke-project-production.up.railway.app/"  # Change to your Railway URL
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -36,73 +36,11 @@ os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
 
-# =============== CACHE FUNCTIONS ===============
-@st.cache_data(ttl=300)
-def get_audio_files_b64(song_name):
-    """Cache audio files for better performance"""
-    original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-    accompaniment_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
-    
-    original_b64 = ""
-    accompaniment_b64 = ""
-    
-    if os.path.exists(original_path):
-        with open(original_path, "rb") as f:
-            original_b64 = base64.b64encode(f.read()).decode()
-    
-    if os.path.exists(accompaniment_path):
-        with open(accompaniment_path, "rb") as f:
-            accompaniment_b64 = base64.b64encode(f.read()).decode()
-    
-    return original_b64, accompaniment_b64
-
-@st.cache_data(ttl=300)
-def get_lyrics_image_b64(song_name):
-    """Cache lyrics images"""
-    lyrics_b64 = ""
-    for ext in [".jpg", ".jpeg", ".png"]:
-        p = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{ext}")
-        if os.path.exists(p):
-            with open(p, "rb") as f:
-                lyrics_b64 = base64.b64encode(f.read()).decode()
-            break
-    return lyrics_b64
-
-@st.cache_data(ttl=600)
-def load_metadata_cached():
-    """Cache metadata loading"""
-    file_metadata = {}
-    if os.path.exists(metadata_path):
-        try:
-            with open(metadata_path, "r") as f:
-                file_metadata = json.load(f)
-        except:
-            file_metadata = {}
-    return file_metadata
-
-@st.cache_data(ttl=300)
-def load_shared_links_cached():
-    """Cache shared links"""
-    file_links = {}
-    if os.path.exists(shared_links_dir):
-        for filename in os.listdir(shared_links_dir):
-            if filename.endswith('.json'):
-                song_name = filename[:-5]
-                filepath = os.path.join(shared_links_dir, filename)
-                try:
-                    with open(filepath, 'r') as f:
-                        data = json.load(f)
-                        if data.get("active", True):
-                            file_links[song_name] = data
-                except:
-                    pass
-    return file_links
-
 # =============== PERSISTENT SESSION DATABASE ===============
 def init_session_db():
     """Initialize SQLite database for persistent sessions"""
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS sessions
                      (session_id TEXT PRIMARY KEY,
@@ -123,12 +61,12 @@ def init_session_db():
         conn.commit()
         conn.close()
     except Exception as e:
-        st.error(f"Database init error: {e}")
+        print(f"Database init error: {e}")
 
 def save_session_to_db():
     """Save current session to database"""
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         session_id = st.session_state.get('session_id', 'default')
         
@@ -144,32 +82,36 @@ def save_session_to_db():
         conn.commit()
         conn.close()
     except Exception as e:
-        st.error(f"Save session error: {e}")
+        print(f"Save session error: {e}")
 
 def load_session_from_db():
-    """Load session from database - simplified to avoid conflicts"""
+    """Load session from database"""
     try:
         session_id = st.session_state.get('session_id', 'default')
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
-        c.execute('SELECT user, role FROM sessions WHERE session_id = ?', 
+        c.execute('SELECT user, role, page, selected_song FROM sessions WHERE session_id = ?', 
                   (session_id,))
         result = c.fetchone()
         conn.close()
         
         if result:
-            user, role = result
-            if user and user != 'None' and 'user' not in st.session_state:
+            user, role, page, selected_song = result
+            if user and user != 'None':
                 st.session_state.user = user
-            if role and role != 'None' and 'role' not in st.session_state:
+            if role and role != 'None':
                 st.session_state.role = role
-    except:
-        pass
+            if page and page != 'None':
+                st.session_state.page = page
+            if selected_song and selected_song != 'None':
+                st.session_state.selected_song = selected_song
+    except Exception as e:
+        print(f"Load session error: {e}")
 
 def save_shared_link_to_db(song_name, shared_by):
     """Save shared link to database"""
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         c.execute('''INSERT OR REPLACE INTO shared_links 
                      (song_name, shared_by, active, created_at)
@@ -177,25 +119,25 @@ def save_shared_link_to_db(song_name, shared_by):
                   (song_name, shared_by, True, datetime.now()))
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Save shared link error: {e}")
 
 def delete_shared_link_from_db(song_name):
     """Delete shared link from database"""
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         c.execute('DELETE FROM shared_links WHERE song_name = ?', (song_name,))
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Delete shared link error: {e}")
 
 def load_shared_links_from_db():
     """Load shared links from database"""
     links = {}
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         c.execute('SELECT song_name, shared_by FROM shared_links WHERE active = 1')
         results = c.fetchall()
@@ -203,14 +145,14 @@ def load_shared_links_from_db():
         
         for song_name, shared_by in results:
             links[song_name] = {"shared_by": shared_by, "active": True}
-    except:
-        pass
+    except Exception as e:
+        print(f"Load shared links error: {e}")
     return links
 
 def save_metadata_to_db(song_name, uploaded_by):
     """Save metadata to database"""
     try:
-        conn = sqlite3.connect(session_db_path, check_same_thread=False)
+        conn = sqlite3.connect(session_db_path)
         c = conn.cursor()
         c.execute('''INSERT OR REPLACE INTO metadata 
                      (song_name, uploaded_by, timestamp)
@@ -218,8 +160,24 @@ def save_metadata_to_db(song_name, uploaded_by):
                   (song_name, uploaded_by, time.time()))
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Save metadata error: {e}")
+
+def load_metadata_from_db():
+    """Load metadata from database"""
+    metadata = {}
+    try:
+        conn = sqlite3.connect(session_db_path)
+        c = conn.cursor()
+        c.execute('SELECT song_name, uploaded_by FROM metadata')
+        results = c.fetchall()
+        conn.close()
+        
+        for song_name, uploaded_by in results:
+            metadata[song_name] = {"uploaded_by": uploaded_by, "timestamp": str(time.time())}
+    except Exception as e:
+        print(f"Load metadata error: {e}")
+    return metadata
 
 # Initialize database
 init_session_db()
@@ -231,56 +189,91 @@ def file_to_base64(path):
             return base64.b64encode(f.read()).decode()
     return ""
 
+def get_file_url(file_path):
+    """Get a direct URL for the file (for Railway deployment)"""
+    if not os.path.exists(file_path):
+        return ""
+    
+    # For Railway, we need to serve files differently
+    # We'll create a unique route for each file
+    file_name = os.path.basename(file_path)
+    # We'll use a unique identifier to avoid caching issues
+    unique_id = str(hash(file_path + str(os.path.getmtime(file_path))))[:8]
+    return f"/file/{unique_id}/{file_name}"
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_metadata():
-    """Load metadata from cache"""
-    return load_metadata_cached()
+    """Load metadata from both file and database"""
+    file_metadata = {}
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, "r") as f:
+                file_metadata = json.load(f)
+        except:
+            file_metadata = {}
+    
+    # Merge with database metadata
+    db_metadata = load_metadata_from_db()
+    file_metadata.update(db_metadata)
+    return file_metadata
 
 def save_metadata(data):
-    """Save metadata to file"""
+    """Save metadata to both file and database"""
+    # Save to file
     with open(metadata_path, "w") as f:
         json.dump(data, f, indent=2)
     
-    # Save to database for important songs
+    # Save to database
     for song_name, info in data.items():
         uploaded_by = info.get("uploaded_by", "unknown")
         save_metadata_to_db(song_name, uploaded_by)
 
 def load_shared_links():
-    """Load shared links from cache"""
-    file_links = load_shared_links_cached()
+    """Load shared links from both file and database"""
+    file_links = {}
+    if os.path.exists(shared_links_dir):
+        for filename in os.listdir(shared_links_dir):
+            if filename.endswith('.json'):
+                song_name = filename[:-5]
+                filepath = os.path.join(shared_links_dir, filename)
+                try:
+                    with open(filepath, 'r') as f:
+                        data = json.load(f)
+                        if data.get("active", True):
+                            file_links[song_name] = data
+                except:
+                    pass
+    
+    # Merge with database links
     db_links = load_shared_links_from_db()
     file_links.update(db_links)
     return file_links
 
 def save_shared_link(song_name, link_data):
-    """Save shared link"""
+    """Save shared link to both file and database"""
+    # Save to file
     filepath = os.path.join(shared_links_dir, f"{song_name}.json")
     with open(filepath, 'w') as f:
         json.dump(link_data, f)
     
+    # Save to database
     shared_by = link_data.get("shared_by", "unknown")
     save_shared_link_to_db(song_name, shared_by)
-    
-    # Clear cache
-    load_shared_links_cached.clear()
 
 def delete_shared_link(song_name):
-    """Delete shared link"""
+    """Delete shared link from both file and database"""
+    # Delete from file
     filepath = os.path.join(shared_links_dir, f"{song_name}.json")
     if os.path.exists(filepath):
         os.remove(filepath)
     
+    # Delete from database
     delete_shared_link_from_db(song_name)
-    
-    # Clear cache
-    load_shared_links_cached.clear()
 
-@st.cache_data(ttl=300)
-def get_uploaded_songs_cached(show_unshared=False):
-    """Cache song list retrieval"""
+def get_uploaded_songs(show_unshared=False):
+    """Get list of uploaded songs"""
     songs = []
     if not os.path.exists(songs_dir):
         return songs
@@ -294,14 +287,9 @@ def get_uploaded_songs_cached(show_unshared=False):
                 songs.append(song_name)
     return sorted(songs)
 
-def get_uploaded_songs(show_unshared=False):
-    """Get list of uploaded songs"""
-    return get_uploaded_songs_cached(show_unshared)
-
 def check_and_create_session_id():
     """Create unique session ID if not exists"""
     if 'session_id' not in st.session_state:
-        import uuid
         st.session_state.session_id = str(uuid.uuid4())
 
 # =============== INITIALIZE SESSION ===============
@@ -316,18 +304,20 @@ if "page" not in st.session_state:
     st.session_state.page = "Login"
 if "selected_song" not in st.session_state:
     st.session_state.selected_song = None
+if "login_attempts" not in st.session_state:
+    st.session_state.login_attempts = 0
 
-# Load persistent session data - only on login page
-if st.session_state.page == "Login":
-    load_session_from_db()
+# Load persistent session data
+load_session_from_db()
 
 metadata = load_metadata()
 
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
-logo_b64 = ""
-if os.path.exists(default_logo_path):
-    logo_b64 = file_to_base64(default_logo_path)
+if not os.path.exists(default_logo_path):
+    # Don't show uploader on login page to avoid rerun issues
+    pass
+logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
 
 # =============== CHECK FOR DIRECT SONG LINK ===============
 query_params = st.query_params
@@ -351,351 +341,494 @@ if st.session_state.page == "Login":
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-
-    body {
-        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
-    }
-
-    .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem;
-    }
-
-    .login-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem;
-        margin-bottom: 1.6rem;
-        text-align: center;
-    }
-
-    .login-header img {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.4);
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
+    
+    /* Remove Streamlit default styles */
+    .stApp { background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%); }
+    
+    /* Main container */
+    .main { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    
+    /* Login box */
+    .login-box {
+        background: rgba(5,15,35,0.85);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 40px;
         width: 100%;
-    }
-
-    .login-sub {
-        font-size: 0.9rem;
-        color: #c3cfdd;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    .stTextInput input {
-        background: rgba(5,10,25,0.7) !important;
-        border-radius: 10px !important;
-        color: white !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important;
-    }
-
-    .stTextInput input:focus {
-        border-color: rgba(255,255,255,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    }
-
-    .stButton button {
-        width: 100%;
-        height: 44px;
-        background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px;
-        font-weight: 600;
-        margin-top: 0.6rem;
-        color: white;
-        border: none;
-        transition: all 0.3s ease;
+        max-width: 420px;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
     
-    .stButton button:hover {
+    /* Logo */
+    .login-logo {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .login-logo img {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 3px solid rgba(255,255,255,0.3);
+        margin-bottom: 15px;
+    }
+    
+    .login-title {
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ff0066, #00ccff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 5px;
+    }
+    
+    .login-subtitle {
+        color: #a0b3d6;
+        font-size: 14px;
+        margin-bottom: 30px;
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input {
+        background: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        border-radius: 12px !important;
+        color: white !important;
+        padding: 14px 18px !important;
+        font-size: 16px !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #ff0066 !important;
+        box-shadow: 0 0 0 2px rgba(255,0,102,0.2) !important;
+    }
+    
+    /* Login button */
+    .stButton > button {
+        width: 100%;
+        background: linear-gradient(135deg, #ff0066, #ff3399);
+        color: white;
+        border: none;
+        padding: 16px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 10px;
+    }
+    
+    .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 10px 20px rgba(255,0,102,0.3);
+    }
+    
+    /* Footer */
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        color: #8899cc;
+        font-size: 13px;
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # -------- CENTER ALIGN COLUMN --------
-    left, center, right = st.columns([1, 1.5, 1])
-
-    with center:
-        st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
+    
+    # Center the login form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        
+        # Logo and title
         st.markdown(f"""
-        <div class="login-header">
+        <div class="login-logo">
             <img src="data:image/png;base64,{logo_b64}">
             <div class="login-title">𝄞 Karaoke Reels</div>
-            <div class="login-sub">Login to continue</div>
+            <div class="login-subtitle">Sign in to continue</div>
         </div>
         """, unsafe_allow_html=True)
-
-        username = st.text_input("Email / Username", placeholder="admin / user1 / user2", value="", key="login_username")
-        password = st.text_input("Password", type="password", placeholder="Enter password", value="", key="login_password")
-
-        if st.button("Login", key="login_button", type="primary"):
+        
+        # Input fields
+        username = st.text_input("Username", placeholder="admin / user1 / user2", key="login_user")
+        password = st.text_input("Password", type="password", placeholder="Enter password", key="login_pass")
+        
+        # Login button
+        if st.button("🚀 Login", key="login_btn"):
             if not username or not password:
-                st.error("❌ Enter both username and password")
+                st.error("Please enter both username and password")
             else:
-                with st.spinner("Logging in..."):
-                    time.sleep(0.5)  # Small delay for better UX
-                    hashed_pass = hash_password(password)
-                    if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
-                        st.session_state.user = username
-                        st.session_state.role = "admin"
-                        st.session_state.page = "Admin Dashboard"
-                        save_session_to_db()
-                        st.rerun()
-                    elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
-                        st.session_state.user = username
-                        st.session_state.role = "user"
-                        st.session_state.page = "User Dashboard"
-                        save_session_to_db()
-                        st.rerun()
-                    elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
-                        st.session_state.user = username
-                        st.session_state.role = "user"
-                        st.session_state.page = "User Dashboard"
-                        save_session_to_db()
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid credentials")
-
+                hashed_pass = hash_password(password)
+                if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
+                    st.session_state.user = username
+                    st.session_state.role = "admin"
+                    st.session_state.page = "Admin Dashboard"
+                    st.session_state.login_attempts = 0
+                    save_session_to_db()
+                    st.rerun()
+                elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
+                    st.session_state.user = username
+                    st.session_state.role = "user"
+                    st.session_state.page = "User Dashboard"
+                    st.session_state.login_attempts = 0
+                    save_session_to_db()
+                    st.rerun()
+                elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
+                    st.session_state.user = username
+                    st.session_state.role = "user"
+                    st.session_state.page = "User Dashboard"
+                    st.session_state.login_attempts = 0
+                    save_session_to_db()
+                    st.rerun()
+                else:
+                    st.session_state.login_attempts += 1
+                    st.error(f"Invalid credentials. Attempt {st.session_state.login_attempts}")
+        
+        # Footer
         st.markdown("""
-        <div style="margin-top:16px;font-size:0.8rem;color:#b5c2d2;text-align:center;padding-bottom:8px;">
-            Don't have access? Contact admin.
+        <div class="login-footer">
+            Need access? Contact administrator
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
-    # Auto-save session
     save_session_to_db()
     
-    st.title(f"👑 Admin Dashboard - {st.session_state.user}")
-
-    page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"], key="admin_nav")
-
-    if page_sidebar == "Upload Songs":
-        st.subheader("📤 Upload New Song")
+    # Custom CSS for admin dashboard
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    
+    .song-item {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 4px solid #3b82f6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title(f"👑 Admin Dashboard - Welcome {st.session_state.user}")
+    
+    # Navigation
+    page_option = st.sidebar.selectbox(
+        "Navigation",
+        ["📤 Upload Songs", "🎵 Songs List", "🔗 Share Links", "📊 Statistics"]
+    )
+    
+    st.sidebar.markdown("---")
+    
+    if st.sidebar.button("🚪 Logout", key="admin_logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.page = "Login"
+        save_session_to_db()
+        st.rerun()
+    
+    if page_option == "📤 Upload Songs":
+        st.subheader("Upload New Song")
         
-        # Song name input
-        song_name = st.text_input("Song Name (without extensions)", 
-                                  placeholder="e.g., MyFavoriteSong",
-                                  help="Enter a unique name for the song")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            song_name = st.text_input("Song Name", placeholder="Enter song name (e.g., ShapeOfYou)")
+        
+        with col2:
+            uploaded_by = st.text_input("Uploaded By", value=st.session_state.user, disabled=True)
         
         col1, col2, col3 = st.columns(3)
-        with col1:
-            uploaded_original = st.file_uploader("Original Song (*.mp3)", type=["mp3"], key="original_upload")
-        with col2:
-            uploaded_accompaniment = st.file_uploader("Accompaniment (*.mp3)", type=["mp3"], key="acc_upload")
-        with col3:
-            uploaded_lyrics_image = st.file_uploader("Lyrics Image (*.jpg, *.png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
-
-        if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-            if not song_name:
-                # Extract from filename if not provided
-                song_name = uploaded_original.name.replace("_original.mp3", "").replace(".mp3", "").strip()
-            
-            # Remove any special characters
-            song_name = "".join(c for c in song_name if c.isalnum() or c in (' ', '-', '_')).strip()
-            
-            original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-            acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
-            lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1].lower()
-            lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
-
-            if st.button("Upload Song", type="primary"):
-                with st.spinner(f"Uploading {song_name}..."):
-                    try:
-                        with open(original_path, "wb") as f:
-                            f.write(uploaded_original.getbuffer())
-                        with open(acc_path, "wb") as f:
-                            f.write(uploaded_accompaniment.getbuffer())
-                        with open(lyrics_path, "wb") as f:
-                            f.write(uploaded_lyrics_image.getbuffer())
-
-                        metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(time.time())}
-                        save_metadata(metadata)
-                        
-                        # Clear caches
-                        get_uploaded_songs_cached.clear()
-                        get_audio_files_b64.clear()
-                        get_lyrics_image_b64.clear()
-                        
-                        st.success(f"✅ Successfully uploaded: {song_name}")
-                        st.balloons()
-                        time.sleep(1.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Upload failed: {str(e)}")
-
-    elif page_sidebar == "Songs List":
-        st.subheader("🎵 All Songs List (Admin View)")
-        uploaded_songs = get_uploaded_songs(show_unshared=True)
         
-        if not uploaded_songs:
-            st.warning("❌ No songs uploaded yet.")
+        with col1:
+            original_file = st.file_uploader("Original MP3", type=["mp3"], key="orig_up")
+        
+        with col2:
+            acc_file = st.file_uploader("Accompaniment MP3", type=["mp3"], key="acc_up")
+        
+        with col3:
+            lyrics_img = st.file_uploader("Lyrics Image", type=["jpg", "jpeg", "png"], key="lyrics_up")
+        
+        if st.button("📥 Upload Song", type="primary"):
+            if not song_name:
+                st.error("Please enter a song name")
+            elif not original_file or not acc_file or not lyrics_img:
+                st.error("Please upload all three files")
+            else:
+                # Save files
+                original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+                acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
+                
+                # Determine image extension
+                img_ext = os.path.splitext(lyrics_img.name)[1]
+                lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{img_ext}")
+                
+                with open(original_path, "wb") as f:
+                    f.write(original_file.getbuffer())
+                
+                with open(acc_path, "wb") as f:
+                    f.write(acc_file.getbuffer())
+                
+                with open(lyrics_path, "wb") as f:
+                    f.write(lyrics_img.getbuffer())
+                
+                # Update metadata
+                metadata[song_name] = {
+                    "uploaded_by": uploaded_by,
+                    "timestamp": time.time(),
+                    "files": {
+                        "original": f"{song_name}_original.mp3",
+                        "accompaniment": f"{song_name}_accompaniment.mp3",
+                        "lyrics": f"{song_name}_lyrics_bg{img_ext}"
+                    }
+                }
+                save_metadata(metadata)
+                
+                st.success(f"✅ Successfully uploaded '{song_name}'!")
+                st.balloons()
+                time.sleep(1)
+                st.rerun()
+    
+    elif page_option == "🎵 Songs List":
+        st.subheader("All Songs")
+        
+        songs = get_uploaded_songs(show_unshared=True)
+        
+        if not songs:
+            st.info("No songs uploaded yet. Use the 'Upload Songs' tab to add songs.")
         else:
-            st.info(f"Found {len(uploaded_songs)} songs")
+            search_term = st.text_input("🔍 Search songs", placeholder="Type to search...")
             
-            for idx, s in enumerate(uploaded_songs):
-                col1, col2, col3, col4 = st.columns([3, 1, 2, 1])
-                safe_s = quote(s)
-
+            filtered_songs = [s for s in songs if search_term.lower() in s.lower()] if search_term else songs
+            
+            for song in filtered_songs:
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"""
+                        <div class="song-item">
+                            <h4>{song}</h4>
+                            <p>Uploaded by: {metadata.get(song, {}).get('uploaded_by', 'Unknown')}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        if st.button("▶ Play", key=f"play_{song}"):
+                            st.session_state.selected_song = song
+                            st.session_state.page = "Song Player"
+                            save_session_to_db()
+                            st.rerun()
+                    
+                    with col3:
+                        if st.button("🔗 Share", key=f"share_{song}"):
+                            save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
+                            st.success(f"'{song}' is now shared with users!")
+                    
+                    with col4:
+                        if st.button("🗑 Delete", key=f"del_{song}"):
+                            # Delete files
+                            original_path = os.path.join(songs_dir, f"{song}_original.mp3")
+                            acc_path = os.path.join(songs_dir, f"{song}_accompaniment.mp3")
+                            
+                            for path in [original_path, acc_path]:
+                                if os.path.exists(path):
+                                    os.remove(path)
+                            
+                            # Delete lyrics image
+                            for ext in ['.jpg', '.jpeg', '.png']:
+                                lyrics_path = os.path.join(lyrics_dir, f"{song}_lyrics_bg{ext}")
+                                if os.path.exists(lyrics_path):
+                                    os.remove(lyrics_path)
+                            
+                            # Delete from metadata
+                            if song in metadata:
+                                del metadata[song]
+                                save_metadata(metadata)
+                            
+                            # Delete shared link if exists
+                            delete_shared_link(song)
+                            
+                            st.success(f"✅ '{song}' deleted successfully!")
+                            time.sleep(1)
+                            st.rerun()
+    
+    elif page_option == "🔗 Share Links":
+        st.subheader("Manage Shared Links")
+        
+        songs = get_uploaded_songs(show_unshared=True)
+        shared_songs = load_shared_links()
+        
+        if not songs:
+            st.info("No songs available to share.")
+        else:
+            for song in songs:
+                is_shared = song in shared_songs
+                
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
+                
                 with col1:
-                    uploader = metadata.get(s, {}).get('uploaded_by', 'Unknown')
-                    st.write(f"**{idx+1}. {s}**")
-                    st.caption(f"by {uploader}")
+                    status = "✅ Shared" if is_shared else "❌ Not Shared"
+                    st.write(f"**{song}** - {status}")
                 
                 with col2:
-                    if st.button("▶ Play", key=f"play_{s}_{idx}", help="Play this song"):
-                        st.session_state.selected_song = s
+                    if is_shared:
+                        if st.button("🚫 Unshare", key=f"unshare_{song}"):
+                            delete_shared_link(song)
+                            st.success(f"'{song}' is no longer shared")
+                            time.sleep(1)
+                            st.rerun()
+                    else:
+                        if st.button("✅ Share", key=f"makeshare_{song}"):
+                            save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
+                            st.success(f"'{song}' is now shared!")
+                            time.sleep(1)
+                            st.rerun()
+                
+                with col3:
+                    if st.button("▶ Play", key=f"playshare_{song}"):
+                        st.session_state.selected_song = song
                         st.session_state.page = "Song Player"
                         save_session_to_db()
                         st.rerun()
                 
-                with col3:
-                    share_url = f"{APP_URL}?song={safe_s}"
-                    st.markdown(f"[🔗 Copy Share Link]({share_url})", unsafe_allow_html=True)
-                
-                with col4:
-                    if st.button("🗑️", key=f"delete_{s}_{idx}", help="Delete song"):
-                        # Delete song files
-                        original_path = os.path.join(songs_dir, f"{s}_original.mp3")
-                        acc_path = os.path.join(songs_dir, f"{s}_accompaniment.mp3")
-                        
-                        for ext in [".jpg", ".jpeg", ".png"]:
-                            lyrics_path = os.path.join(lyrics_dir, f"{s}_lyrics_bg{ext}")
-                            if os.path.exists(lyrics_path):
-                                os.remove(lyrics_path)
-                        
-                        if os.path.exists(original_path):
-                            os.remove(original_path)
-                        if os.path.exists(acc_path):
-                            os.remove(acc_path)
-                        
-                        # Remove from metadata and shared links
-                        if s in metadata:
-                            del metadata[s]
-                            save_metadata(metadata)
-                        
-                        delete_shared_link(s)
-                        
-                        # Clear caches
-                        get_uploaded_songs_cached.clear()
-                        
-                        st.success(f"✅ Deleted: {s}")
-                        time.sleep(1)
-                        st.rerun()
-
-    elif page_sidebar == "Share Links":
-        st.header("🔗 Manage Shared Links")
-        all_songs = get_uploaded_songs(show_unshared=True)
-        shared_links_data = load_shared_links()
-
-        if not all_songs:
-            st.warning("No songs available to share.")
-        else:
-            for song in all_songs:
-                col1, col2, col3, col4 = st.columns([2.5, 1, 1, 1.5])
-                safe_song = quote(song)
-                is_shared = song in shared_links_data
-
-                with col1:
-                    if is_shared:
-                        st.success(f"✅ **{song}** - SHARED")
-                    else:
-                        st.warning(f"❌ **{song}** - NOT SHARED")
-
-                with col2:
-                    if st.button("🔄 Toggle", key=f"toggle_share_{song}", help="Toggle sharing status"):
-                        if is_shared:
-                            delete_shared_link(song)
-                            st.success(f"✅ {song} unshared! Users can no longer see this song.")
-                        else:
-                            save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
-                            share_url = f"{APP_URL}?song={safe_song}"
-                            st.success(f"✅ {song} shared! Link: {share_url}")
-                        time.sleep(0.8)
-                        st.rerun()
-
-                with col3:
-                    if is_shared:
-                        if st.button("🚫 Remove", key=f"unshare_{song}"):
-                            delete_shared_link(song)
-                            st.success(f"✅ {song} unshared!")
-                            time.sleep(0.8)
-                            st.rerun()
-
                 with col4:
                     if is_shared:
-                        share_url = f"{APP_URL}?song={safe_song}"
-                        st.markdown(f'<a href="{share_url}" target="_blank" style="text-decoration:none;"><button style="background:#4CAF50;color:white;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;">📱 Open</button></a>', unsafe_allow_html=True)
-
-    if st.sidebar.button("🚪 Logout", key="admin_logout", type="primary"):
-        with st.spinner("Logging out..."):
-            time.sleep(0.5)
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
+                        share_url = f"{APP_URL}?song={quote(song)}"
+                        st.markdown(f"`{share_url}`")
+    
+    elif page_option == "📊 Statistics":
+        st.subheader("Statistics")
+        
+        total_songs = len(get_uploaded_songs(show_unshared=True))
+        shared_songs = len(load_shared_links())
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Songs", total_songs)
+        
+        with col2:
+            st.metric("Shared Songs", shared_songs)
+        
+        with col3:
+            st.metric("Private Songs", total_songs - shared_songs)
+        
+        # Recent activity
+        st.subheader("Recent Activity")
+        
+        # Get recent uploads from metadata
+        recent_uploads = []
+        for song, info in metadata.items():
+            if 'timestamp' in info:
+                recent_uploads.append({
+                    'song': song,
+                    'uploaded_by': info.get('uploaded_by', 'Unknown'),
+                    'timestamp': float(info.get('timestamp', 0))
+                })
+        
+        # Sort by timestamp (newest first)
+        recent_uploads.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        for upload in recent_uploads[:5]:
+            time_str = datetime.fromtimestamp(upload['timestamp']).strftime("%Y-%m-%d %H:%M")
+            st.write(f"• **{upload['song']}** uploaded by {upload['uploaded_by']} at {time_str}")
 
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    # Auto-save session
     save_session_to_db()
     
-    st.title(f"👤 User Dashboard - {st.session_state.user}")
-
-    st.subheader("🎵 Available Songs (Only Shared Songs)")
-    uploaded_songs = get_uploaded_songs(show_unshared=False)
-
-    if not uploaded_songs:
-        st.warning("❌ No shared songs available. Contact admin to share songs.")
-        st.info("👑 Only admin-shared songs appear here for users.")
-    else:
-        st.info(f"You have access to {len(uploaded_songs)} shared songs")
+    # Custom CSS for user dashboard
+    st.markdown("""
+    <style>
+    .user-song-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 15px 0;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .user-song-card:hover {
+        transform: translateY(-5px);
+        border-color: #3b82f6;
+    }
+    
+    .play-btn {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        border: none;
+        padding: 10px 25px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title(f"🎤 Welcome, {st.session_state.user}!")
+    
+    st.markdown("---")
+    
+    st.subheader("🎵 Available Songs")
+    
+    songs = get_uploaded_songs(show_unshared=False)
+    
+    if not songs:
+        st.info("""
+        No songs available yet. 
         
-        for idx, song in enumerate(uploaded_songs):
-            col1, col2, col3 = st.columns([3, 1, 1])
-            with col1:
-                st.write(f"**{idx+1}. {song}**")
-                st.caption("Shared song")
-            with col2:
-                if st.button("▶ Play", key=f"user_play_{song}_{idx}", type="primary"):
+        📞 Please contact the administrator to share songs with you.
+        
+        Once songs are shared, they will appear here automatically.
+        """)
+    else:
+        # Search bar
+        search = st.text_input("🔍 Search for songs", placeholder="Type song name...")
+        
+        # Filter songs based on search
+        if search:
+            songs = [s for s in songs if search.lower() in s.lower()]
+        
+        # Display songs in a grid
+        cols = st.columns(2)
+        
+        for idx, song in enumerate(songs):
+            col_idx = idx % 2
+            with cols[col_idx]:
+                st.markdown(f"""
+                <div class="user-song-card">
+                    <h3>{song}</h3>
+                    <p>Shared by: {metadata.get(song, {}).get('uploaded_by', 'Admin')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("▶ Play Now", key=f"user_play_{song}"):
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
                     save_session_to_db()
                     st.rerun()
-            with col3:
-                safe_song = quote(song)
-                share_url = f"{APP_URL}?song={safe_song}"
-                st.markdown(f"[🔗 Link]({share_url})", unsafe_allow_html=True)
-
-    if st.button("🚪 Logout", key="user_logout", type="primary"):
-        with st.spinner("Logging out..."):
-            time.sleep(0.5)
+    
+    st.markdown("---")
+    
+    # Logout button at bottom
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🚪 Logout", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.session_state.page = "Login"
@@ -704,62 +837,102 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
 
 # =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-    # Auto-save session
     save_session_to_db()
     
-    selected_song = st.session_state.get("selected_song", None)
+    selected_song = st.session_state.get("selected_song")
     
-    # Show loading state
-    with st.spinner(f"Loading {selected_song}..."):
-        # Check access permission
-        shared_links = load_shared_links()
-        is_shared = selected_song in shared_links
-        is_admin = st.session_state.role == "admin"
-        is_guest = st.session_state.role == "guest"
-
-        if not (is_shared or is_admin or is_guest):
-            st.error("❌ Access denied! This song is not shared with users.")
-            if st.button("Go Back"):
-                if st.session_state.role == "user":
-                    st.session_state.page = "User Dashboard"
-                else:
-                    st.session_state.page = "Admin Dashboard"
-                save_session_to_db()
-                st.rerun()
-            st.stop()
-        
-        # Get cached data
-        original_b64, accompaniment_b64 = get_audio_files_b64(selected_song)
-        lyrics_b64 = get_lyrics_image_b64(selected_song)
-        
-        if not original_b64 or not accompaniment_b64:
-            st.error("❌ Song files not found or corrupted!")
-            if st.button("Go Back"):
-                if st.session_state.role == "user":
-                    st.session_state.page = "User Dashboard"
-                else:
-                    st.session_state.page = "Admin Dashboard"
-                save_session_to_db()
-                st.rerun()
-            st.stop()
-
-    # CSS for player
+    # Check access
+    shared_links = load_shared_links()
+    is_shared = selected_song in shared_links
+    is_admin = st.session_state.role == "admin"
+    is_guest = st.session_state.role == "guest"
+    
+    if not (is_shared or is_admin or is_guest):
+        st.error("❌ Access Denied! This song is not shared.")
+        if st.button("← Go Back"):
+            if st.session_state.role == "admin":
+                st.session_state.page = "Admin Dashboard"
+            else:
+                st.session_state.page = "User Dashboard"
+            save_session_to_db()
+            st.rerun()
+        st.stop()
+    
+    # Get file paths
+    original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
+    accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
+    
+    # Find lyrics image
+    lyrics_path = ""
+    for ext in [".jpg", ".jpeg", ".png"]:
+        p = os.path.join(lyrics_dir, f"{selected_song}_lyrics_bg{ext}")
+        if os.path.exists(p):
+            lyrics_path = p
+            break
+    
+    # Check if files exist
+    if not os.path.exists(original_path) or not os.path.exists(accompaniment_path):
+        st.error("❌ Song files not found!")
+        if st.button("← Go Back"):
+            if st.session_state.role == "admin":
+                st.session_state.page = "Admin Dashboard"
+            else:
+                st.session_state.page = "User Dashboard"
+            save_session_to_db()
+            st.rerun()
+        st.stop()
+    
+    # Get base64 data
+    original_b64 = file_to_base64(original_path)
+    accompaniment_b64 = file_to_base64(accompaniment_path)
+    lyrics_b64 = file_to_base64(lyrics_path) if lyrics_path else ""
+    
+    # Custom CSS for player
     st.markdown("""
     <style>
-    [data-testid="stSidebar"] {display: none !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    div.block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
+    [data-testid="stSidebar"] { display: none !important; }
+    header { visibility: hidden !important; }
+    footer { visibility: hidden !important; }
+    
+    .player-header {
+        background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+        padding: 15px 25px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .back-btn {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .back-btn:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    .song-title {
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #ff0066, #00ccff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 10px 0;
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # Back button
-    col1, col2 = st.columns([5, 1])
-    with col2:
-        if st.button("← Back to Dashboard", key="back_player", type="primary"):
+    
+    # Player header
+    col1, col2, col3 = st.columns([1, 3, 1])
+    
+    with col1:
+        if st.button("← Back", key="player_back"):
             if st.session_state.role == "admin":
                 st.session_state.page = "Admin Dashboard"
             elif st.session_state.role == "user":
@@ -768,568 +941,386 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                 st.session_state.page = "Login"
             save_session_to_db()
             st.rerun()
-
-    # HTML Player Template
-    karaoke_template = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Karaoke Player - %%SONG_NAME%%</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #000;
-            color: white;
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
-        
-        .player-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .video-container {
-            flex: 1;
-            position: relative;
-            background: #000;
-            overflow: hidden;
-        }
-        
-        .lyrics-image {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            object-position: center;
-        }
-        
-        .logo {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            z-index: 10;
-        }
-        
-        .controls-container {
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            justify-content: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .control-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 140px;
-            justify-content: center;
-        }
-        
-        .control-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .control-btn:active {
-            transform: translateY(0);
-        }
-        
-        .control-btn.stop {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        
-        .control-btn.record {
-            background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
-        }
-        
-        .status-bar {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            z-index: 10;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .hidden {
-            display: none;
-        }
-        
-        .recording-indicator {
-            animation: pulse 1.5s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        /* Modal styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: rgba(30, 30, 40, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 500px;
-            width: 90%;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .modal-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 25px;
-        }
-        
-        .modal-btn {
-            padding: 10px 25px;
-            border-radius: 20px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .modal-btn.download {
-            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-            color: white;
-        }
-        
-        .modal-btn.new {
-            background: linear-gradient(135deg, #2196F3 0%, #0D47A1 100%);
-            color: white;
-        }
-        
-        .modal-btn.close {
-            background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="player-container">
-        <div class="video-container">
-            <img class="lyrics-image" id="lyricsImage" src="data:image/jpeg;base64,%%LYRICS_B64%%" alt="Lyrics">
-            <img class="logo" id="logoImg" src="data:image/png;base64,%%LOGO_B64%%" alt="Logo">
-            <div class="status-bar" id="statusBar">Ready 🎤</div>
-            <canvas id="recordingCanvas" width="1920" height="1080" class="hidden"></canvas>
-        </div>
-        
-        <div class="controls-container">
-            <button class="control-btn" id="playBtn">
-                <span>▶</span> Play Original
-            </button>
-            <button class="control-btn record" id="recordBtn">
-                <span>🎙</span> Start Recording
-            </button>
-            <button class="control-btn stop hidden" id="stopBtn">
-                <span>⏹</span> Stop Recording
-            </button>
-        </div>
-    </div>
     
-    <!-- Recording Modal -->
-    <div class="modal" id="recordingModal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 15px;">🎉 Recording Complete!</h2>
-            <p style="color: #ccc; margin-bottom: 20px;">Your karaoke recording is ready. You can download it or start a new recording.</p>
+    with col2:
+        st.markdown(f'<div class="song-title">🎤 {selected_song}</div>', unsafe_allow_html=True)
+    
+    with col3:
+        st.write(f"👤 {st.session_state.user}")
+    
+    st.markdown("---")
+    
+    # Optimized HTML player for Railway
+    player_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>🎤 Karaoke Player - {selected_song}</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ 
+                background: #000; 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                color: white;
+                overflow: hidden;
+                width: 100%;
+                height: 100vh;
+            }}
             
-            <div class="modal-buttons">
-                <button class="modal-btn download" id="downloadBtn">
-                    ⬇ Download Recording
-                </button>
-                <button class="modal-btn new" id="newRecordingBtn">
-                    🔄 New Recording
-                </button>
-                <button class="modal-btn close" id="closeModalBtn">
-                    ✕ Close
-                </button>
+            .container {{
+                width: 100%;
+                height: 100vh;
+                position: relative;
+            }}
+            
+            .lyrics-image {{
+                width: 100%;
+                height: 85vh;
+                object-fit: contain;
+                background: #111;
+            }}
+            
+            .logo {{
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                border: 2px solid rgba(255,255,255,0.3);
+                z-index: 10;
+            }}
+            
+            .controls {{
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background: rgba(0,0,0,0.8);
+                padding: 20px;
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+                z-index: 100;
+            }}
+            
+            .control-btn {{
+                background: linear-gradient(135deg, #ff0066, #ff3399);
+                color: white;
+                border: none;
+                padding: 12px 25px;
+                border-radius: 25px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                min-width: 150px;
+            }}
+            
+            .control-btn:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(255,0,102,0.4);
+            }}
+            
+            .control-btn:active {{
+                transform: translateY(0);
+            }}
+            
+            .control-btn.stop {{
+                background: linear-gradient(135deg, #ff3300, #ff6600);
+            }}
+            
+            .status {{
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: rgba(0,0,0,0.7);
+                padding: 10px 20px;
+                border-radius: 20px;
+                font-size: 14px;
+                z-index: 10;
+            }}
+            
+            .recording-indicator {{
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(255,0,0,0.8);
+                padding: 10px 30px;
+                border-radius: 30px;
+                font-size: 24px;
+                font-weight: bold;
+                display: none;
+                z-index: 50;
+                animation: pulse 1.5s infinite;
+            }}
+            
+            @keyframes pulse {{
+                0% {{ opacity: 0.7; }}
+                50% {{ opacity: 1; }}
+                100% {{ opacity: 0.7; }}
+            }}
+            
+            canvas {{
+                display: none;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <img class="logo" src="data:image/png;base64,{logo_b64}">
+            
+            <div class="status" id="status">Ready 🎤</div>
+            
+            <div class="recording-indicator" id="recIndicator">● RECORDING</div>
+            
+            <img class="lyrics-image" id="lyricsImg" src="data:image/jpeg;base64,{lyrics_b64}" 
+                 onerror="this.src='https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1920'">
+            
+            <div class="controls">
+                <button class="control-btn" id="playBtn">▶ Play Original</button>
+                <button class="control-btn" id="recordBtn">🎙 Start Recording</button>
+                <button class="control-btn stop" id="stopBtn" style="display:none;">⏹ Stop Recording</button>
+                <button class="control-btn" id="playRecordBtn" style="display:none;">▶ Play Recording</button>
             </div>
         </div>
-    </div>
-    
-    <!-- Hidden audio elements -->
-    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%" preload="auto"></audio>
-    <audio id="accompanimentAudio" src="data:audio/mp3;base64,%%ACCOMP_B64%%" preload="auto"></audio>
-    
-    <script>
-        // Global variables
-        let mediaRecorder;
-        let recordedChunks = [];
-        let audioContext;
-        let micSource;
-        let accSource;
-        let canvasStream;
-        let isRecording = false;
-        let isPlaying = false;
-        let currentRecordingUrl = null;
         
-        // DOM Elements
-        const playBtn = document.getElementById('playBtn');
-        const recordBtn = document.getElementById('recordBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const statusBar = document.getElementById('statusBar');
-        const originalAudio = document.getElementById('originalAudio');
-        const accompanimentAudio = document.getElementById('accompanimentAudio');
-        const lyricsImage = document.getElementById('lyricsImage');
-        const canvas = document.getElementById('recordingCanvas');
-        const ctx = canvas.getContext('2d');
-        const recordingModal = document.getElementById('recordingModal');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const newRecordingBtn = document.getElementById('newRecordingBtn');
-        const closeModalBtn = document.getElementById('closeModalBtn');
+        <!-- Audio elements -->
+        <audio id="originalAudio" src="data:audio/mp3;base64,{original_b64}" preload="auto"></audio>
+        <audio id="accompanimentAudio" src="data:audio/mp3;base64,{accompaniment_b64}" preload="auto"></audio>
         
-        // Initialize audio context
-        async function initAudioContext() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-            return audioContext;
-        }
+        <!-- Canvas for recording -->
+        <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
         
-        // Play original audio
-        playBtn.addEventListener('click', async () => {
-            await initAudioContext();
+        <script>
+            // Global variables
+            let mediaRecorder;
+            let recordedChunks = [];
+            let audioContext;
+            let isRecording = false;
+            let originalAudio = document.getElementById('originalAudio');
+            let accompanimentAudio = document.getElementById('accompanimentAudio');
+            let status = document.getElementById('status');
+            let recIndicator = document.getElementById('recIndicator');
+            let canvas = document.getElementById('recordingCanvas');
+            let ctx = canvas.getContext('2d');
+            let lyricsImg = document.getElementById('lyricsImg');
             
-            if (!isPlaying) {
-                try {
-                    originalAudio.currentTime = 0;
-                    await originalAudio.play();
-                    playBtn.innerHTML = '<span>⏸</span> Pause Original';
-                    statusBar.textContent = 'Playing original... 🎵';
-                    isPlaying = true;
-                } catch (error) {
-                    console.error('Play error:', error);
-                    statusBar.textContent = 'Click to play ▶';
-                }
-            } else {
-                originalAudio.pause();
-                playBtn.innerHTML = '<span>▶</span> Play Original';
-                statusBar.textContent = 'Paused ⏸';
-                isPlaying = false;
-            }
-        });
-        
-        // Draw on canvas for recording
-        function drawCanvasFrame() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Play button
+            document.getElementById('playBtn').onclick = function() {{
+                if (originalAudio.paused) {{
+                    originalAudio.play();
+                    this.textContent = '⏸ Pause Original';
+                    status.textContent = 'Playing original...';
+                }} else {{
+                    originalAudio.pause();
+                    this.textContent = '▶ Play Original';
+                    status.textContent = 'Paused';
+                }}
+            }};
             
-            // Draw lyrics image
-            const imgRatio = lyricsImage.naturalWidth / lyricsImage.naturalHeight;
-            const canvasRatio = canvas.width / canvas.height;
-            
-            let drawWidth, drawHeight, offsetX, offsetY;
-            
-            if (imgRatio > canvasRatio) {
-                // Image is wider than canvas
-                drawWidth = canvas.width;
-                drawHeight = canvas.width / imgRatio;
-                offsetX = 0;
-                offsetY = (canvas.height - drawHeight) / 2;
-            } else {
-                // Image is taller than canvas
-                drawHeight = canvas.height;
-                drawWidth = canvas.height * imgRatio;
-                offsetX = (canvas.width - drawWidth) / 2;
-                offsetY = 0;
-            }
-            
-            ctx.drawImage(lyricsImage, offsetX, offsetY, drawWidth, drawHeight);
-            
-            // Draw logo
-            const logoImg = document.getElementById('logoImg');
-            if (logoImg.complete) {
-                ctx.globalAlpha = 0.6;
-                ctx.drawImage(logoImg, 20, 20, 60, 60);
-                ctx.globalAlpha = 1;
-            }
-            
-            // Draw recording indicator
-            if (isRecording) {
-                ctx.fillStyle = '#ff0000';
-                ctx.beginPath();
-                ctx.arc(50, 100, 10, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = 'white';
-                ctx.font = '14px Arial';
-                ctx.fillText('REC', 65, 105);
-            }
-        }
-        
-        // Start recording
-        recordBtn.addEventListener('click', async () => {
-            if (isRecording) return;
-            
-            try {
-                await initAudioContext();
+            // Record button
+            document.getElementById('recordBtn').onclick = async function() {{
+                if (isRecording) return;
                 
-                // Stop any current playback
+                try {{
+                    isRecording = true;
+                    status.textContent = 'Starting recording...';
+                    recIndicator.style.display = 'block';
+                    
+                    // Initialize audio context
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Get microphone access
+                    const micStream = await navigator.mediaDevices.getUserMedia({{ 
+                        audio: {{ 
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            sampleRate: 44100
+                        }} 
+                    }});
+                    
+                    // Create audio nodes
+                    const micSource = audioContext.createMediaStreamSource(micStream);
+                    const destination = audioContext.createMediaStreamDestination();
+                    
+                    // Connect microphone
+                    micSource.connect(destination);
+                    
+                    // Start original audio for timing
+                    originalAudio.currentTime = 0;
+                    accompanimentAudio.currentTime = 0;
+                    originalAudio.play();
+                    accompanimentAudio.play();
+                    
+                    // Start drawing on canvas
+                    startCanvasDrawing();
+                    
+                    // Combine video and audio
+                    const canvasStream = canvas.captureStream(30);
+                    const combinedStream = new MediaStream([
+                        ...canvasStream.getVideoTracks(),
+                        ...destination.stream.getAudioTracks()
+                    ]);
+                    
+                    // Setup media recorder
+                    mediaRecorder = new MediaRecorder(combinedStream, {{
+                        mimeType: 'video/webm;codecs=vp9,opus',
+                        videoBitsPerSecond: 2500000
+                    }});
+                    
+                    recordedChunks = [];
+                    
+                    mediaRecorder.ondataavailable = function(event) {{
+                        if (event.data.size > 0) {{
+                            recordedChunks.push(event.data);
+                        }}
+                    }};
+                    
+                    mediaRecorder.onstop = function() {{
+                        const blob = new Blob(recordedChunks, {{ type: 'video/webm' }});
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Show play recording button
+                        document.getElementById('playRecordBtn').style.display = 'inline-block';
+                        document.getElementById('playRecordBtn').onclick = function() {{
+                            const recordingAudio = new Audio(url);
+                            recordingAudio.play();
+                            status.textContent = 'Playing recording...';
+                        }};
+                        
+                        // Download link
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'karaoke_recording_{selected_song}_{{Date.now()}}.webm';
+                        a.click();
+                    }};
+                    
+                    mediaRecorder.start(1000); // Collect data every second
+                    
+                    // Update UI
+                    document.getElementById('recordBtn').style.display = 'none';
+                    document.getElementById('stopBtn').style.display = 'inline-block';
+                    status.textContent = '● Recording...';
+                    
+                }} catch (error) {{
+                    console.error('Recording error:', error);
+                    status.textContent = 'Recording failed: ' + error.message;
+                    isRecording = false;
+                    recIndicator.style.display = 'none';
+                }}
+            }};
+            
+            // Stop button
+            document.getElementById('stopBtn').onclick = function() {{
+                if (!isRecording) return;
+                
+                isRecording = false;
+                
+                // Stop recording
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
+                    mediaRecorder.stop();
+                }}
+                
+                // Stop audio
                 originalAudio.pause();
                 accompanimentAudio.pause();
-                isPlaying = false;
-                playBtn.innerHTML = '<span>▶</span> Play Original';
-                
-                // Reset recorded chunks
-                recordedChunks = [];
-                
-                // Get microphone access
-                const micStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-                
-                // Create audio sources
-                micSource = audioContext.createMediaStreamSource(micStream);
-                
-                // Load accompaniment
-                const accResponse = await fetch(accompanimentAudio.src);
-                const accArrayBuffer = await accResponse.arrayBuffer();
-                const accAudioBuffer = await audioContext.decodeAudioData(accArrayBuffer);
-                
-                accSource = audioContext.createBufferSource();
-                accSource.buffer = accAudioBuffer;
-                
-                // Create destination for mixing
-                const destination = audioContext.createMediaStreamDestination();
-                micSource.connect(destination);
-                accSource.connect(destination);
-                
-                // Start accompaniment
-                accSource.start();
-                
-                // Setup canvas for video
-                canvas.width = 1280;
-                canvas.height = 720;
-                
-                // Create canvas stream
-                canvasStream = canvas.captureStream(30);
-                
-                // Mix audio with video
-                const mixedStream = new MediaStream([
-                    ...canvasStream.getVideoTracks(),
-                    ...destination.stream.getAudioTracks()
-                ]);
-                
-                // Setup media recorder
-                mediaRecorder = new MediaRecorder(mixedStream, {
-                    mimeType: 'video/webm;codecs=vp9,opus'
-                });
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
-                    }
-                };
-                
-                mediaRecorder.onstop = () => {
-                    // Stop audio sources
-                    if (accSource) accSource.stop();
-                    
-                    // Create blob and URL
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    
-                    // Clean up previous URL
-                    if (currentRecordingUrl) {
-                        URL.revokeObjectURL(currentRecordingUrl);
-                    }
-                    
-                    currentRecordingUrl = URL.createObjectURL(blob);
-                    
-                    // Setup download
-                    downloadBtn.onclick = () => {
-                        const a = document.createElement('a');
-                        a.href = currentRecordingUrl;
-                        a.download = `karaoke_${Date.now()}.webm`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    };
-                    
-                    // Show modal
-                    recordingModal.style.display = 'flex';
-                    statusBar.textContent = 'Recording complete! 🎉';
-                };
-                
-                // Start recording
-                mediaRecorder.start(1000); // Collect data every second
-                isRecording = true;
                 
                 // Update UI
-                recordBtn.classList.add('hidden');
-                stopBtn.classList.remove('hidden');
-                statusBar.textContent = 'Recording... 🎙';
-                statusBar.classList.add('recording-indicator');
+                this.style.display = 'none';
+                document.getElementById('recordBtn').style.display = 'inline-block';
+                document.getElementById('playBtn').textContent = '▶ Play Original';
+                recIndicator.style.display = 'none';
+                status.textContent = 'Recording saved! Click "Play Recording" to listen.';
                 
-                // Start canvas drawing
-                function drawLoop() {
+                // Close audio context
+                if (audioContext) {{
+                    audioContext.close();
+                }}
+            }};
+            
+            // Canvas drawing function
+            function startCanvasDrawing() {{
+                function draw() {{
                     if (!isRecording) return;
-                    drawCanvasFrame();
-                    requestAnimationFrame(drawLoop);
-                }
-                drawLoop();
+                    
+                    // Clear canvas
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw lyrics image centered
+                    const imgRatio = lyricsImg.naturalWidth / lyricsImg.naturalHeight;
+                    const canvasRatio = canvas.width / (canvas.height * 0.85);
+                    
+                    let drawWidth, drawHeight;
+                    
+                    if (imgRatio > canvasRatio) {{
+                        drawWidth = canvas.width;
+                        drawHeight = canvas.width / imgRatio;
+                    }} else {{
+                        drawHeight = canvas.height * 0.85;
+                        drawWidth = drawHeight * imgRatio;
+                    }}
+                    
+                    const x = (canvas.width - drawWidth) / 2;
+                    const y = (canvas.height * 0.85 - drawHeight) / 2;
+                    
+                    ctx.drawImage(lyricsImg, x, y, drawWidth, drawHeight);
+                    
+                    // Draw logo
+                    const logo = document.querySelector('.logo');
+                    ctx.drawImage(logo, 20, 20, 60, 60);
+                    
+                    // Draw recording indicator
+                    if (isRecording) {{
+                        ctx.fillStyle = 'rgba(255,0,0,0.7)';
+                        ctx.beginPath();
+                        ctx.arc(canvas.width - 50, 50, 15, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.font = 'bold 20px Arial';
+                        ctx.fillText('REC', canvas.width - 100, 55);
+                    }}
+                    
+                    requestAnimationFrame(draw);
+                }}
                 
-                // Start playback
-                originalAudio.currentTime = 0;
-                accompanimentAudio.currentTime = 0;
+                // Start drawing
+                draw();
+            }}
+            
+            // Preload images
+            window.onload = function() {{
+                // Ensure images are loaded
+                if (lyricsImg.complete) {{
+                    status.textContent = 'Ready 🎤';
+                }} else {{
+                    lyricsImg.onload = function() {{
+                        status.textContent = 'Ready 🎤';
+                    }};
+                }}
                 
-                try {
-                    await Promise.all([
-                        originalAudio.play(),
-                        accompanimentAudio.play()
-                    ]);
-                } catch (error) {
-                    console.log('Autoplay might be blocked:', error);
-                }
-                
-            } catch (error) {
-                console.error('Recording error:', error);
-                statusBar.textContent = 'Recording failed 😢';
-                if (error.name === 'NotAllowedError') {
-                    alert('Please allow microphone access to record.');
-                }
-                resetRecordingState();
-            }
-        });
-        
-        // Stop recording
-        stopBtn.addEventListener('click', () => {
-            if (!isRecording || !mediaRecorder) return;
+                // Preload audio
+                originalAudio.load();
+                accompanimentAudio.load();
+            }};
             
-            mediaRecorder.stop();
-            isRecording = false;
-            
-            // Stop playback
-            originalAudio.pause();
-            accompanimentAudio.pause();
-            
-            // Update UI
-            stopBtn.classList.add('hidden');
-            recordBtn.classList.remove('hidden');
-            statusBar.classList.remove('recording-indicator');
-            statusBar.textContent = 'Processing recording...';
-        });
-        
-        // Modal buttons
-        newRecordingBtn.addEventListener('click', () => {
-            recordingModal.style.display = 'none';
-            resetRecordingState();
-            statusBar.textContent = 'Ready for new recording 🎤';
-        });
-        
-        closeModalBtn.addEventListener('click', () => {
-            recordingModal.style.display = 'none';
-            statusBar.textContent = 'Ready 🎤';
-        });
-        
-        // Reset recording state
-        function resetRecordingState() {
-            isRecording = false;
-            recordBtn.classList.remove('hidden');
-            stopBtn.classList.add('hidden');
-            statusBar.classList.remove('recording-indicator');
-            
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                try {
-                    mediaRecorder.stop();
-                } catch (e) {}
-            }
-            
-            if (accSource) {
-                try {
-                    accSource.stop();
-                } catch (e) {}
-            }
-        }
-        
-        // Initialize
-        window.addEventListener('load', () => {
-            statusBar.textContent = 'Ready 🎤';
-            
-            // Preload audio
-            originalAudio.load();
-            accompanimentAudio.load();
-            
-            // Handle page visibility changes
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden && isRecording) {
-                    stopBtn.click();
-                }
-            });
-        });
-        
-        // Clean up on page unload
-        window.addEventListener('beforeunload', () => {
-            if (currentRecordingUrl) {
-                URL.revokeObjectURL(currentRecordingUrl);
-            }
-        });
-    </script>
-</body>
-</html>
+            // Handle page visibility change
+            document.addEventListener('visibilitychange', function() {{
+                if (document.hidden && isRecording) {{
+                    document.getElementById('stopBtn').click();
+                }}
+            }});
+        </script>
+    </body>
+    </html>
     """
     
-    # Replace placeholders in template
-    karaoke_html = karaoke_template.replace("%%SONG_NAME%%", selected_song)
-    karaoke_html = karaoke_html.replace("%%LYRICS_B64%%", lyrics_b64 or "")
-    karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
-    
     # Display the player
-    html(karaoke_html, height=750, scrolling=False)
+    html(player_html, height=800, scrolling=False)
 
 # =============== FALLBACK ===============
 else:
@@ -1337,27 +1328,18 @@ else:
     save_session_to_db()
     st.rerun()
 
-# =============== DEBUG INFO (Hidden by default) ===============
-with st.sidebar:
-    if st.session_state.get("role") == "admin":
-        if st.checkbox("Show Debug Info", key="debug_toggle"):
+# =============== DEBUG INFO ===============
+if st.session_state.get("role") == "admin" and False:  # Set to True for debugging
+    with st.sidebar:
+        if st.checkbox("Show Debug Info"):
             st.write("### Debug Info")
             st.write(f"Page: {st.session_state.get('page')}")
             st.write(f"User: {st.session_state.get('user')}")
             st.write(f"Role: {st.session_state.get('role')}")
             st.write(f"Selected Song: {st.session_state.get('selected_song')}")
-            st.write(f"Session ID: {st.session_state.get('session_id', 'N/A')}")
+            st.write(f"Session ID: {st.session_state.get('session_id')}")
             
-            if st.button("Clear All Caches", key="clear_caches"):
-                # Clear all caches
-                get_audio_files_b64.clear()
-                get_lyrics_image_b64.clear()
-                get_uploaded_songs_cached.clear()
-                load_metadata_cached.clear()
-                load_shared_links_cached.clear()
-                st.success("Caches cleared!")
-            
-            if st.button("Force Reset Session", key="debug_reset"):
+            if st.button("Reset App"):
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.session_state.page = "Login"
