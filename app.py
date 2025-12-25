@@ -11,19 +11,9 @@ from datetime import datetime
 
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
-# --------- CONFIG: set your deployed app URLs ----------
-APP_URL = "https://karaoke-song.onrender.com/"  # Your main app URL
-RAILWAY_URL = "https://karaoke-project-production.up.railway.app/"  # Railway URL
-# Use Railway URL if deployed on Railway
-APP_URL = RAILWAY_URL
-
-# For serving media files directly - IMPORTANT
-def get_media_url(file_path):
-    """Get direct URL to media file"""
-    # In production on Railway/Render, files are served from the same domain
-    if file_path.startswith("media/"):
-        return f"{APP_URL}{file_path}"
-    return file_path
+# --------- CONFIG: set your deployed app URL here ----------
+# 重要：确保这是你Railway应用的最终URL
+APP_URL = "https://karaoke-project-production.up.railway.app/"
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
@@ -199,17 +189,6 @@ def file_to_base64(path):
             return base64.b64encode(f.read()).decode()
     return ""
 
-def get_media_path(relative_path):
-    """Get full path for media files"""
-    return os.path.join(media_dir, relative_path)
-
-def get_direct_media_url(relative_path):
-    """Get direct URL to media file for HTML/JS"""
-    # Remove 'media/' prefix if present
-    if relative_path.startswith('media/'):
-        relative_path = relative_path[6:]
-    return f"{APP_URL}media/{relative_path}"
-
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -302,15 +281,6 @@ def check_and_create_session_id():
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
 
-# =============== SERVE MEDIA FILES VIA STREAMLIT ===============
-@st.cache_data(show_spinner=False, ttl=3600)
-def serve_media_file(file_path):
-    """Serve media files through Streamlit"""
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as f:
-            return f.read()
-    return None
-
 # =============== INITIALIZE SESSION ===============
 check_and_create_session_id()
 
@@ -336,7 +306,8 @@ if not os.path.exists(default_logo_path):
     pass
 logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
 
-# =============== CHECK FOR DIRECT SONG LINK ===============
+# =============== 修复的关键部分：检查直接歌曲链接 ===============
+# 移除导致错误的函数，直接在主代码中处理查询参数
 query_params = st.query_params
 if "song" in query_params and st.session_state.page == "Login":
     song_from_url = unquote(query_params["song"])
@@ -347,6 +318,8 @@ if "song" in query_params and st.session_state.page == "Login":
         st.session_state.user = "guest"
         st.session_state.role = "guest"
         save_session_to_db()
+        # 立即重新运行以应用状态更改
+        st.rerun()
 
 # =============== RESPONSIVE LOGIN PAGE ===============
 if st.session_state.page == "Login":
@@ -443,21 +416,13 @@ if st.session_state.page == "Login":
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
 
         # Header with better spacing
-        if logo_b64:
-            st.markdown(f"""
-            <div class="login-header">
-                <img src="data:image/png;base64,{logo_b64}">
-                <div class="login-title">𝄞 Karaoke Reels</div>
-                <div class="login-sub">Login to continue</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="login-header">
-                <div class="login-title">𝄞 Karaoke Reels</div>
-                <div class="login-sub">Login to continue</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="login-header">
+            <img src="data:image/png;base64,{logo_b64}">
+            <div class="login-title">𝄞 Karaoke Reels</div>
+            <div class="login-sub">Login to continue</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         username = st.text_input("Email / Username", placeholder="admin / user1 / user2", value="", key="login_username")
         password = st.text_input("Password", type="password", placeholder="Enter password", value="", key="login_password")
@@ -693,7 +658,6 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             st.rerun()
         st.stop()
 
-    # Find files
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
 
@@ -704,58 +668,44 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             lyrics_path = p
             break
 
-    # Get direct URLs for media files - FASTER APPROACH
-    original_url = get_direct_media_url(f"songs/{selected_song}_original.mp3")
-    accompaniment_url = get_direct_media_url(f"songs/{selected_song}_accompaniment.mp3")
-    lyrics_url = ""
-    if lyrics_path:
-        # Extract relative path for lyrics
-        rel_path = os.path.relpath(lyrics_path, media_dir)
-        lyrics_url = get_direct_media_url(rel_path)
-    
-    logo_url = get_direct_media_url("logo/branks3_logo.png") if os.path.exists(default_logo_path) else ""
+    original_b64 = file_to_base64(original_path)
+    accompaniment_b64 = file_to_base64(accompaniment_path)
+    lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Use direct URLs instead of base64 for faster loading
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>🎤 Karaoke Reels</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
-  .reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
-  #status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
-  .reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; background: #000; }
-  .lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
-  .controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
-  button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
-  button:active { transform: scale(0.95); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
-  #logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
-  canvas { display: none; }
-  .back-button { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; z-index: 100; }
-  .loading { color: #fff; text-align: center; padding-top: 50px; }
-  </style>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
+.reel-container, .final-reel-container { width: 100%; height: 100%; position: absolute; background: #111; overflow: hidden; }
+#status { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 14px; color: #ccc; z-index: 20; text-shadow: 1px 1px 6px rgba(0,0,0,0.9); }
+.reel-bg { position: absolute; top: 0; left: 0; width: 100%; height: 85vh; object-fit: contain; object-position: top; }
+.lyrics { position: absolute; bottom: 25%; width: 100%; text-align: center; font-size: 2vw; font-weight: bold; color: white; text-shadow: 2px 2px 10px black; }
+.controls { position: absolute; bottom: 20%; width: 100%; text-align: center; z-index: 30; }
+button { background: linear-gradient(135deg, #ff0066, #ff66cc); border: none; color: white; padding: 8px 20px; border-radius: 25px; font-size: 13px; margin: 4px; box-shadow: 0px 3px 15px rgba(255,0,128,0.4); cursor: pointer; }
+button:active { transform: scale(0.95); }
+.final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
+#logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
+canvas { display: none; }
+.back-button { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; z-index: 100; }
+</style>
 </head>
 <body>
 
 <div class="reel-container" id="reelContainer">
-    <img class="reel-bg" id="mainBg" src="%%LYRICS_URL%%" onerror="this.style.display='none'" loading="eager">
-    <img id="logoImg" src="%%LOGO_URL%%" onerror="this.style.display='none'">
-    <div id="status">Loading... 🎤</div>
-    <audio id="originalAudio" preload="auto">
-        <source src="%%ORIGINAL_URL%%" type="audio/mp3">
-    </audio>
-    <audio id="accompaniment" preload="auto">
-        <source src="%%ACCOMP_URL%%" type="audio/mp3">
-    </audio>
+    <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
+    <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
+    <div id="status">Ready 🎤</div>
+    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
+    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
     <div class="controls">
-      <button id="playBtn" disabled>▶ Loading...</button>
-      <button id="recordBtn" disabled>🎙 Record</button>
+      <button id="playBtn">▶ Play</button>
+      <button id="recordBtn">🎙 Record</button>
       <button id="stopBtn" style="display:none;">⏹ Stop</button>
     </div>
 </div>
@@ -788,7 +738,6 @@ let audioContext, micSource, accSource;
 let canvasRafId = null;
 let isRecording = false;
 let isPlayingRecording = false;
-let audioLoaded = false;
 
 /* ================== ELEMENTS ================== */
 const playBtn = document.getElementById("playBtn");
@@ -810,40 +759,8 @@ const newRecordingBtn = document.getElementById("newRecordingBtn");
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
 
-const logoImg = document.getElementById("logoImg");
-
-/* ================== CHECK AUDIO LOADING ================== */
-function checkAudioLoaded() {
-    if (originalAudio.readyState >= 3 && accompanimentAudio.readyState >= 3) {
-        if (!audioLoaded) {
-            audioLoaded = true;
-            playBtn.disabled = false;
-            recordBtn.disabled = false;
-            playBtn.innerText = "▶ Play";
-            recordBtn.innerText = "🎙 Record";
-            status.innerText = "Ready 🎤";
-        }
-    }
-}
-
-originalAudio.addEventListener('canplaythrough', checkAudioLoaded);
-accompanimentAudio.addEventListener('canplaythrough', checkAudioLoaded);
-
-// Start loading audio
-originalAudio.load();
-accompanimentAudio.load();
-
-// Timeout to enable buttons even if canplaythrough doesn't fire
-setTimeout(() => {
-    if (!audioLoaded) {
-        audioLoaded = true;
-        playBtn.disabled = false;
-        recordBtn.disabled = false;
-        playBtn.innerText = "▶ Play";
-        recordBtn.innerText = "🎙 Record";
-        status.innerText = "Ready 🎤";
-    }
-}, 2000);
+const logoImg = new Image();
+logoImg.src = document.getElementById("logoImg").src;
 
 /* ================== AUDIO CONTEXT FIX ================== */
 async function ensureAudioContext() {
@@ -861,8 +778,6 @@ async function safePlay(audio) {
         await audio.play();
     } catch (e) {
         console.log("Autoplay blocked:", e);
-        status.innerText = "Click Play to start";
-        playBtn.innerText = "▶ Play";
     }
 }
 
@@ -885,7 +800,7 @@ playBtn.onclick = async () => {
     }
 };
 
-/* ================== CANVAS DRAW ================== */
+/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
 function drawCanvas() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -906,16 +821,14 @@ function drawCanvas() {
     }
 
     const x = (canvasW - drawW) / 2;
-    const y = 0;
+    const y = 0; // TOP aligned
 
     ctx.drawImage(mainBg, x, y, drawW, drawH);
 
-    /* LOGO */
-    if (logoImg.complete && logoImg.naturalWidth > 0) {
-        ctx.globalAlpha = 0.6;
-        ctx.drawImage(logoImg, 20, 20, 60, 60);
-        ctx.globalAlpha = 1;
-    }
+    /* LOGO — exact Django feel */
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(logoImg, 20, 20, 60, 60);
+    ctx.globalAlpha = 1;
 
     canvasRafId = requestAnimationFrame(drawCanvas);
 }
@@ -929,80 +842,74 @@ recordBtn.onclick = async () => {
     recordedChunks = [];
 
     /* MIC */
-    try {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micSource = audioContext.createMediaStreamSource(micStream);
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micSource = audioContext.createMediaStreamSource(micStream);
 
-        /* ACCOMPANIMENT */
-        const accRes = await fetch(accompanimentAudio.src);
-        const accBuf = await accRes.arrayBuffer();
-        const accDecoded = await audioContext.decodeAudioData(accBuf);
+    /* ACCOMPANIMENT */
+    const accRes = await fetch(accompanimentAudio.src);
+    const accBuf = await accRes.arrayBuffer();
+    const accDecoded = await audioContext.decodeAudioData(accBuf);
 
-        accSource = audioContext.createBufferSource();
-        accSource.buffer = accDecoded;
+    accSource = audioContext.createBufferSource();
+    accSource.buffer = accDecoded;
 
-        const destination = audioContext.createMediaStreamDestination();
-        micSource.connect(destination);
-        accSource.connect(destination);
+    const destination = audioContext.createMediaStreamDestination();
+    micSource.connect(destination);
+    accSource.connect(destination);
 
-        accSource.start();
+    accSource.start();
 
-        canvas.width = 1920;
-        canvas.height = 1080;
-        drawCanvas();
+    canvas.width = 1920;
+    canvas.height = 1080;
+    drawCanvas();
 
-        const stream = new MediaStream([
-            ...canvas.captureStream(30).getTracks(),
-            ...destination.stream.getTracks()
-        ]);
+    const stream = new MediaStream([
+        ...canvas.captureStream(30).getTracks(),
+        ...destination.stream.getTracks()
+    ]);
 
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
-        mediaRecorder.ondataavailable = e => e.data.size && recordedChunks.push(e.data);
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => e.data.size && recordedChunks.push(e.data);
 
-        mediaRecorder.onstop = () => {
-            cancelAnimationFrame(canvasRafId);
+    mediaRecorder.onstop = () => {
+        cancelAnimationFrame(canvasRafId);
 
-            const blob = new Blob(recordedChunks, { type: "video/webm" });
-            const url = URL.createObjectURL(blob);
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
 
-            if (lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
-            lastRecordingURL = url;
+        if (lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
+        lastRecordingURL = url;
 
-            finalBg.src = mainBg.src;
-            finalDiv.style.display = "flex";
+        finalBg.src = mainBg.src;
+        finalDiv.style.display = "flex";
 
-            downloadRecordingBtn.href = url;
-            downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
+        downloadRecordingBtn.href = url;
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
 
-            playRecordingBtn.onclick = () => {
-                if (!isPlayingRecording) {
-                    playRecordingAudio = new Audio(url);
-                    playRecordingAudio.play();
-                    playRecordingBtn.innerText = "⏹ Stop";
-                    isPlayingRecording = true;
-                    playRecordingAudio.onended = resetPlayBtn;
-                } else {
-                    resetPlayBtn();
-                }
-            };
+        playRecordingBtn.onclick = () => {
+            if (!isPlayingRecording) {
+                playRecordingAudio = new Audio(url);
+                playRecordingAudio.play();
+                playRecordingBtn.innerText = "⏹ Stop";
+                isPlayingRecording = true;
+                playRecordingAudio.onended = resetPlayBtn;
+            } else {
+                resetPlayBtn();
+            }
         };
+    };
 
-        mediaRecorder.start();
+    mediaRecorder.start();
 
-        originalAudio.currentTime = 0;
-        accompanimentAudio.currentTime = 0;
-        await safePlay(originalAudio);
-        await safePlay(accompanimentAudio);
+    originalAudio.currentTime = 0;
+    accompanimentAudio.currentTime = 0;
+    await safePlay(originalAudio);
+    await safePlay(accompanimentAudio);
 
-        playBtn.style.display = "none";
-        recordBtn.style.display = "none";
-        stopBtn.style.display = "inline-block";
-        status.innerText = "🎙 Recording...";
-    } catch (error) {
-        console.error("Recording error:", error);
-        status.innerText = "Error starting recording";
-        isRecording = false;
-    }
+    playBtn.style.display = "none";
+    recordBtn.style.display = "none";
+    stopBtn.style.display = "inline-block";
+    status.innerText = "🎙 Recording...";
 };
 
 /* ================== STOP ================== */
@@ -1010,15 +917,8 @@ stopBtn.onclick = () => {
     if (!isRecording) return;
     isRecording = false;
 
-    try { 
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-    } catch (e) { console.log(e); }
-    
-    try { 
-        if (accSource) accSource.stop(); 
-    } catch (e) { console.log(e); }
+    try { mediaRecorder.stop(); } catch {}
+    try { accSource.stop(); } catch {}
 
     originalAudio.pause();
     accompanimentAudio.pause();
@@ -1061,19 +961,15 @@ newRecordingBtn.onclick = () => {
     playBtn.innerText = "▶ Play";
     status.innerText = "Ready 🎤";
 };
-
-// Initial status
-status.innerText = "Loading audio...";
 </script>
 </body>
 </html>
 """
 
-    # Replace placeholders with direct URLs
-    karaoke_html = karaoke_template.replace("%%LYRICS_URL%%", lyrics_url or "")
-    karaoke_html = karaoke_html.replace("%%LOGO_URL%%", logo_url or "")
-    karaoke_html = karaoke_html.replace("%%ORIGINAL_URL%%", original_url)
-    karaoke_html = karaoke_html.replace("%%ACCOMP_URL%%", accompaniment_url)
+    karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
+    karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
     # Add back button
     col1, col2 = st.columns([5, 1])
@@ -1088,7 +984,6 @@ status.innerText = "Loading audio...";
             save_session_to_db()
             st.rerun()
 
-    # Display the player
     html(karaoke_html, height=800, width=1920, scrolling=False)
 
 # =============== FALLBACK ===============
@@ -1097,19 +992,20 @@ else:
     save_session_to_db()
     st.rerun()
 
-# =============== STATIC FILE SERVING ===============
-# This is important for Railway to serve media files
-if st.query_params.get("serve_media") == "true":
-    file_path = st.query_params.get("file", "")
-    if file_path:
-        full_path = os.path.join(media_dir, file_path)
-        if os.path.exists(full_path):
-            # Determine content type
-            if file_path.endswith(".mp3"):
-                st.audio(serve_media_file(full_path), format="audio/mp3")
-            elif file_path.endswith((".jpg", ".jpeg", ".png")):
-                st.image(serve_media_file(full_path))
-            else:
-                st.write("File not supported")
-        else:
-            st.write("File not found")
+# =============== DEBUG INFO (Hidden by default) ===============
+with st.sidebar:
+    if st.session_state.get("role") == "admin":
+        if st.checkbox("Show Debug Info", key="debug_toggle"):
+            st.write("### Debug Info")
+            st.write(f"Page: {st.session_state.get('page')}")
+            st.write(f"User: {st.session_state.get('user')}")
+            st.write(f"Role: {st.session_state.get('role')}")
+            st.write(f"Selected Song: {st.session_state.get('selected_song')}")
+            st.write(f"Query Params: {dict(st.query_params)}")
+            
+            if st.button("Force Reset", key="debug_reset"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.session_state.page = "Login"
+                save_session_to_db()
+                st.rerun()
