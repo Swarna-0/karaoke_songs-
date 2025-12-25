@@ -5,6 +5,7 @@ import json
 from streamlit.components.v1 import html
 import hashlib
 from urllib.parse import unquote, quote
+import uuid  # ✅ Added for unique keys
 
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
@@ -30,7 +31,12 @@ os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
 
-# Helper functions
+# ✅ UNIQUE KEY GENERATOR FUNCTION
+def get_unique_key(prefix, song_name="", index=0):
+    """Generate unique button keys to prevent Streamlit conflicts"""
+    return f"{prefix}_{index}_{song_name}_{str(uuid.uuid4())[:6]}"
+
+# Helper functions (unchanged)
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
@@ -99,6 +105,8 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "page" not in st.session_state:
     st.session_state.page = "Login"
+if "selected_song" not in st.session_state:
+    st.session_state.selected_song = None
 
 metadata = load_metadata()
 
@@ -216,7 +224,8 @@ if st.session_state.page == "Login":
         username = st.text_input("Email / Username", placeholder="admin / user1 / user2", value="")
         password = st.text_input("Password", type="password", placeholder="Enter password", value="")
 
-        if st.button("Login"):
+        # ✅ FIXED: Unique login button key
+        if st.button("Login", key=get_unique_key("login")):
             if not username or not password:
                 st.error("❌ Enter both username and password")
             else:
@@ -263,27 +272,31 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         with col3:
             uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
 
-        if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
-            song_name = uploaded_original.name.replace("_original.mp3", "").strip()
-            if not song_name:
-                song_name = os.path.splitext(uploaded_original.name)[0]
+        # ✅ FIXED: Upload button with unique key + proper condition
+        if st.button("✅ Upload Song", key=get_unique_key("upload_song")):
+            if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
+                song_name = uploaded_original.name.replace("_original.mp3", "").strip()
+                if not song_name:
+                    song_name = os.path.splitext(uploaded_original.name)[0]
 
-            original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-            acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
-            lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
-            lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
+                original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+                acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
+                lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
+                lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
 
-            with open(original_path, "wb") as f:
-                f.write(uploaded_original.getbuffer())
-            with open(acc_path, "wb") as f:
-                f.write(uploaded_accompaniment.getbuffer())
-            with open(lyrics_path, "wb") as f:
-                f.write(uploaded_lyrics_image.getbuffer())
+                with open(original_path, "wb") as f:
+                    f.write(uploaded_original.getbuffer())
+                with open(acc_path, "wb") as f:
+                    f.write(uploaded_accompaniment.getbuffer())
+                with open(lyrics_path, "wb") as f:
+                    f.write(uploaded_lyrics_image.getbuffer())
 
-            metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
-            save_metadata(metadata)
-            st.success(f"✅ Uploaded: {song_name}")
-            st.rerun()
+                metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(st.session_state.get("timestamp", ""))}
+                save_metadata(metadata)
+                st.success(f"✅ Uploaded: {song_name}")
+                st.rerun()
+            else:
+                st.error("❌ Please upload all 3 files: Original MP3, Accompaniment MP3, Lyrics Image")
 
     elif page_sidebar == "Songs List":
         st.subheader("🎵 All Songs List (Admin View)")
@@ -291,14 +304,15 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         if not uploaded_songs:
             st.warning("❌ No songs uploaded yet.")
         else:
-            for s in uploaded_songs:
+            for i, s in enumerate(uploaded_songs):
                 col1, col2, col3 = st.columns([3, 1, 2])
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"{s} - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
-                    if st.button("▶ Play", key=f"play_{s}"):
+                    # ✅ FIXED: Unique play button keys with index
+                    if st.button("▶ Play", key=get_unique_key("admin_play", s, i)):
                         st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
                         st.rerun()
@@ -311,17 +325,18 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         all_songs = get_uploaded_songs(show_unshared=True)
         shared_links_data = load_shared_links()
 
-        for song in all_songs:
+        for i, song in enumerate(all_songs):
             col1, col2, col3, col4 = st.columns([2.5, 1, 1, 1.5])
             safe_song = quote(song)
             is_shared = song in shared_links_data
 
             with col1:
-                status = "✅ SHARED" if is_shared else "❌ **NOT SHARED"
+                status = "✅ SHARED" if is_shared else "❌ NOT SHARED"
                 st.write(f"{song} - {status}")
 
             with col2:
-                if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
+                # ✅ FIXED: Unique toggle button keys
+                if st.button("🔄 Toggle Share", key=get_unique_key("toggle_share", song, i)):
                     if is_shared:
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users can no longer see this song.")
@@ -333,7 +348,8 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 
             with col3:
                 if is_shared:
-                    if st.button("🚫 Unshare", key=f"unshare_{song}"):
+                    # ✅ FIXED: Unique unshare button keys
+                    if st.button("🚫 Unshare", key=get_unique_key("unshare", song, i)):
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users cannot see this song anymore.")
                         st.rerun()
@@ -343,7 +359,8 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     share_url = f"{APP_URL}?song={safe_song}"
                     st.markdown(f"[📱 Open Link]({share_url})")
 
-    if st.sidebar.button("🚪 Logout"):
+    # ✅ FIXED: Unique logout button key
+    if st.sidebar.button("🚪 Logout", key=get_unique_key("admin_logout")):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
@@ -359,17 +376,19 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
         st.warning("❌ No shared songs available. Contact admin to share songs.")
         st.info("👑 Only admin-shared songs appear here for users.")
     else:
-        for song in uploaded_songs:
+        for i, song in enumerate(uploaded_songs):
             col1, col2 = st.columns([3,1])
             with col1:
                 st.write(f"✅ {song} (Shared)")
             with col2:
-                if st.button("▶ Play", key=f"user_play_{song}"):
+                # ✅ FIXED: Unique user play button keys
+                if st.button("▶ Play", key=get_unique_key("user_play", song, i)):
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
                     st.rerun()
 
-    if st.button("🚪 Logout"):
+    # ✅ FIXED: Unique logout button key
+    if st.button("🚪 Logout", key=get_unique_key("user_logout")):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
@@ -635,7 +654,7 @@ recordBtn.onclick = async () => {
         finalDiv.style.display = "flex";
 
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = karaoke_${Date.now()}.webm;
+        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
 
         playRecordingBtn.onclick = () => {
             if (!isPlayingRecording) {
@@ -713,7 +732,6 @@ newRecordingBtn.onclick = () => {
     status.innerText = "Ready 🎤";
 };
 </script>
-
 
 </body>
 </html>
