@@ -8,18 +8,19 @@ from urllib.parse import unquote, quote
 import time
 import sqlite3
 from datetime import datetime
+import mimetypes
 
 st.set_page_config(page_title="𝄞 sing-along", layout="wide")
 
-# --------- CONFIG: set your deployed app URL here ----------
-APP_URL = "https://karaoke-song.onrender.com/"
+# --------- CONFIG: Update for Railway ----------
+APP_URL = "https://karaoke-project-production.up.railway.app/"  # Updated for Railway
 
 # 🔒 SECURITY: Environment Variables for Password Hashes
 ADMIN_HASH = os.getenv("ADMIN_HASH", "")
 USER1_HASH = os.getenv("USER1_HASH", "")
 USER2_HASH = os.getenv("USER2_HASH", "")
 
-# Base directories
+# Base directories - Railway compatible
 base_dir = os.getcwd()
 media_dir = os.path.join(base_dir, "media")
 songs_dir = os.path.join(media_dir, "songs")
@@ -181,13 +182,31 @@ def load_metadata_from_db():
 # Initialize database
 init_session_db()
 
-# =============== HELPER FUNCTIONS ===============
-def file_to_base64(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return ""
+# =============== RAILWAY OPTIMIZED FILE FUNCTIONS ===============
+def get_file_url(filename):
+    """Get direct file URL for Railway/Render"""
+    return f"{APP_URL}media/{filename}"
 
+def file_exists(path):
+    """Fast file existence check"""
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+def get_uploaded_songs(show_unshared=False):
+    """Get list of uploaded songs - Railway optimized"""
+    songs = []
+    if not os.path.exists(songs_dir):
+        return songs
+    
+    shared_links = load_shared_links()
+    
+    for f in os.listdir(songs_dir):
+        if f.endswith("_original.mp3") and file_exists(os.path.join(songs_dir, f)):
+            song_name = f.replace("_original.mp3", "")
+            if show_unshared or song_name in shared_links:
+                songs.append(song_name)
+    return sorted(songs)
+
+# =============== HELPER FUNCTIONS ===============
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -259,21 +278,6 @@ def delete_shared_link(song_name):
     # Delete from database
     delete_shared_link_from_db(song_name)
 
-def get_uploaded_songs(show_unshared=False):
-    """Get list of uploaded songs"""
-    songs = []
-    if not os.path.exists(songs_dir):
-        return songs
-    
-    shared_links = load_shared_links()
-    
-    for f in os.listdir(songs_dir):
-        if f.endswith("_original.mp3"):
-            song_name = f.replace("_original.mp3", "")
-            if show_unshared or song_name in shared_links:
-                songs.append(song_name)
-    return sorted(songs)
-
 def check_and_create_session_id():
     """Create unique session ID if not exists"""
     if 'session_id' not in st.session_state:
@@ -298,12 +302,9 @@ load_session_from_db()
 
 metadata = load_metadata()
 
-# Logo
+# Logo - Railway optimized
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
-if not os.path.exists(default_logo_path):
-    # Don't show uploader on login page to avoid rerun issues
-    pass
-logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
+logo_b64 = "" if not file_exists(default_logo_path) else base64.b64encode(open(default_logo_path, "rb").read()).decode()
 
 # =============== CHECK FOR DIRECT SONG LINK ===============
 query_params = st.query_params
@@ -326,92 +327,23 @@ if st.session_state.page == "Login":
     <style>
     [data-testid="stSidebar"] {display:none;}
     header {visibility:hidden;}
-
-    body {
-        background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
-    }
-
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
-    .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
-    }
-
-    /* CENTERED HEADER SECTION */
-    .login-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
-        text-align: center;
-    }
-
-    .login-header img {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.4);
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 700;
-        width: 100%;
-    }
-
-    .login-sub {
-        font-size: 0.9rem;
-        color: #c3cfdd;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    /* CREDENTIALS INFO */
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    /* INPUTS BLEND WITH BOX */
-    .stTextInput input {
-        background: rgba(5,10,25,0.7) !important;
-        border-radius: 10px !important;
-        color: white !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
-    }
-
-    .stTextInput input:focus {
-        border-color: rgba(255,255,255,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    }
-
-    .stButton button {
-        width: 100%;
-        height: 44px; /* Slightly taller */
-        background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
-        font-weight: 600;
-        margin-top: 0.6rem;
-        color: white;
-        border: none;
-    }
+    body {background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);}
+    .login-content {padding: 1.8rem 2.2rem 2.2rem 2.2rem;}
+    .login-header {display: flex;flex-direction: column;align-items: center;justify-content: center;gap: 0.8rem;margin-bottom: 1.6rem;text-align: center;}
+    .login-header img {width: 60px;height: 60px;border-radius: 50%;border: 2px solid rgba(255,255,255,0.4);}
+    .login-title {font-size: 1.6rem;font-weight: 700;width: 100%;}
+    .login-sub {font-size: 0.9rem;color: #c3cfdd;margin-bottom: 0.5rem;width: 100%;}
+    .credentials-info {background: rgba(5,10,25,0.8);border: 1px solid rgba(255,255,255,0.2);border-radius: 10px;padding: 12px;margin-top: 16px;font-size: 0.85rem;color: #b5c2d2;}
+    .stTextInput input {background: rgba(5,10,25,0.7) !important;border-radius: 10px !important;color: white !important;border: 1px solid rgba(255,255,255,0.2) !important;padding: 12px 14px !important;}
+    .stTextInput input:focus {border-color: rgba(255,255,255,0.6) !important;box-shadow: 0 0 0 1px rgba(255,255,255,0.3);}
+    .stButton button {width: 100%;height: 44px;background: linear-gradient(to right, #1f2937, #020712);border-radius: 10px;font-weight: 600;margin-top: 0.6rem;color: white;border: none;}
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
 
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -454,12 +386,10 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
@@ -570,7 +500,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👤 User Dashboard - {st.session_state.user}")
@@ -600,9 +529,8 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
         save_session_to_db()
         st.rerun()
 
-# =============== SONG PLAYER ===============
+# =============== RAILWAY OPTIMIZED SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-    # Auto-save session
     save_session_to_db()
     
     st.markdown("""
@@ -612,14 +540,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     .st-emotion-cache-1pahdxg {display:none !important;}
     .st-emotion-cache-18ni7ap {padding: 0 !important;}
     footer {visibility: hidden !important;}
-    div.block-container {
-        padding: 0 !important;
-        margin: 0 !important;
-        width: 100vw !important;
-    }
-    html, body {
-        overflow: hidden !important;
-    }
+    div.block-container {padding: 0 !important;margin: 0 !important;width: 100vw !important;}
+    html, body {overflow: hidden !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -654,21 +576,20 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             st.rerun()
         st.stop()
 
-    original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
-    accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
-
+    # RAILWAY DIRECT URLS - NO BASE64 FOR AUDIO 🎯
+    original_url = get_file_url(f"songs/{selected_song}_original.mp3")
+    accompaniment_url = get_file_url(f"songs/{selected_song}_accompaniment.mp3")
+    
+    # Lyrics image - small, so base64 OK
     lyrics_path = ""
     for ext in [".jpg", ".jpeg", ".png"]:
         p = os.path.join(lyrics_dir, f"{selected_song}_lyrics_bg{ext}")
-        if os.path.exists(p):
+        if file_exists(p):
             lyrics_path = p
             break
+    lyrics_b64 = base64.b64encode(open(lyrics_path, "rb").read()).decode() if lyrics_path else ""
 
-    original_b64 = file_to_base64(original_path)
-    accompaniment_b64 = file_to_base64(accompaniment_path)
-    lyrics_b64 = file_to_base64(lyrics_path)
-
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # RAILWAY OPTIMIZED KARAOKE TEMPLATE 🚀
     karaoke_template = """
 <!doctype html>
 <html>
@@ -689,6 +610,7 @@ button:active { transform: scale(0.95); }
 #logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
 canvas { display: none; }
 .back-button { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; z-index: 100; }
+audio { preload: auto; }
 </style>
 </head>
 <body>
@@ -696,9 +618,9 @@ canvas { display: none; }
 <div class="reel-container" id="reelContainer">
     <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
     <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
-    <div id="status">Ready 🎤</div>
-    <audio id="originalAudio" src="data:audio/mp3;base64,%%ORIGINAL_B64%%"></audio>
-    <audio id="accompaniment" src="data:audio/mp3;base64,%%ACCOMP_B64%%"></audio>
+    <div id="status">🔄 Loading song... (Fast Railway Load)</div>
+    <audio id="originalAudio" crossorigin="anonymous" preload="auto"></audio>
+    <audio id="accompaniment" crossorigin="anonymous" preload="auto"></audio>
     <div class="controls">
       <button id="playBtn">▶ Play</button>
       <button id="recordBtn">🎙 Record</button>
@@ -724,64 +646,45 @@ canvas { display: none; }
 <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
 
 <script>
-/* ================== GLOBAL STATE ================== */
-let mediaRecorder;
-let recordedChunks = [];
-let playRecordingAudio = null;
-let lastRecordingURL = null;
+let mediaRecorder, recordedChunks = [], playRecordingAudio = null, lastRecordingURL = null;
+let audioContext, micSource, accSource, canvasRafId = null, isRecording = false, isPlayingRecording = false;
 
-let audioContext, micSource, accSource;
-let canvasRafId = null;
-let isRecording = false;
-let isPlayingRecording = false;
-
-/* ================== ELEMENTS ================== */
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
 const stopBtn = document.getElementById("stopBtn");
 const status = document.getElementById("status");
-
 const originalAudio = document.getElementById("originalAudio");
 const accompanimentAudio = document.getElementById("accompaniment");
-
 const finalDiv = document.getElementById("finalOutputDiv");
 const mainBg = document.getElementById("mainBg");
 const finalBg = document.getElementById("finalBg");
-
-const playRecordingBtn = document.getElementById("playRecordingBtn");
-const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
-const newRecordingBtn = document.getElementById("newRecordingBtn");
-
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
 
 const logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
 
-/* ================== AUDIO CONTEXT FIX ================== */
+// RAILWAY FAST LOAD - Direct URLs
+originalAudio.src = "%%ORIGINAL_URL%%";
+accompanimentAudio.src = "%%ACCOMP_URL%%";
+
 async function ensureAudioContext() {
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioContext.state === "suspended") {
-        await audioContext.resume();
-    }
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === "suspended") await audioContext.resume();
 }
 
 async function safePlay(audio) {
     try {
         await ensureAudioContext();
         await audio.play();
-    } catch (e) {
-        console.log("Autoplay blocked:", e);
-    }
+    } catch (e) { console.log("Autoplay blocked:", e); }
 }
 
 document.addEventListener("visibilitychange", async () => {
     if (!document.hidden) await ensureAudioContext();
 });
 
-/* ================== PLAY ORIGINAL ================== */
+// FAST PLAY - No base64 needed
 playBtn.onclick = async () => {
     await ensureAudioContext();
     if (originalAudio.paused) {
@@ -796,178 +699,110 @@ playBtn.onclick = async () => {
     }
 };
 
-/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
 function drawCanvas() {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const canvasW = canvas.width;
-    const canvasH = canvas.height * 0.85;
-
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const canvasW = canvas.width, canvasH = canvas.height * 0.85;
     const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
     const canvasRatio = canvasW / canvasH;
-
     let drawW, drawH;
-    if (imgRatio > canvasRatio) {
-        drawW = canvasW;
-        drawH = canvasW / imgRatio;
-    } else {
-        drawH = canvasH;
-        drawW = canvasH * imgRatio;
-    }
-
-    const x = (canvasW - drawW) / 2;
-    const y = 0; // TOP aligned
-
+    if (imgRatio > canvasRatio) { drawW = canvasW; drawH = canvasW / imgRatio; } 
+    else { drawH = canvasH; drawW = canvasH * imgRatio; }
+    const x = (canvasW - drawW) / 2; const y = 0;
     ctx.drawImage(mainBg, x, y, drawW, drawH);
-
-    /* LOGO — exact Django feel */
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(logoImg, 20, 20, 60, 60);
-    ctx.globalAlpha = 1;
-
+    ctx.globalAlpha = 0.6; ctx.drawImage(logoImg, 20, 20, 60, 60); ctx.globalAlpha = 1;
     canvasRafId = requestAnimationFrame(drawCanvas);
 }
 
-/* ================== RECORD ================== */
 recordBtn.onclick = async () => {
-    if (isRecording) return;
-    isRecording = true;
-
-    await ensureAudioContext();
-    recordedChunks = [];
-
-    /* MIC */
+    if (isRecording) return; isRecording = true;
+    await ensureAudioContext(); recordedChunks = [];
+    
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micSource = audioContext.createMediaStreamSource(micStream);
-
-    /* ACCOMPANIMENT */
+    
     const accRes = await fetch(accompanimentAudio.src);
     const accBuf = await accRes.arrayBuffer();
     const accDecoded = await audioContext.decodeAudioData(accBuf);
-
-    accSource = audioContext.createBufferSource();
-    accSource.buffer = accDecoded;
-
+    
+    accSource = audioContext.createBufferSource(); accSource.buffer = accDecoded;
     const destination = audioContext.createMediaStreamDestination();
-    micSource.connect(destination);
-    accSource.connect(destination);
-
+    micSource.connect(destination); accSource.connect(destination);
+    
     accSource.start();
-
-    canvas.width = 1920;
-    canvas.height = 1080;
-    drawCanvas();
-
-    const stream = new MediaStream([
-        ...canvas.captureStream(30).getTracks(),
-        ...destination.stream.getTracks()
-    ]);
-
+    
+    canvas.width = 1920; canvas.height = 1080; drawCanvas();
+    
+    const stream = new MediaStream([...canvas.captureStream(30).getTracks(), ...destination.stream.getTracks()]);
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = e => e.data.size && recordedChunks.push(e.data);
-
+    
     mediaRecorder.onstop = () => {
         cancelAnimationFrame(canvasRafId);
-
         const blob = new Blob(recordedChunks, { type: "video/webm" });
         const url = URL.createObjectURL(blob);
-
         if (lastRecordingURL) URL.revokeObjectURL(lastRecordingURL);
         lastRecordingURL = url;
-
-        finalBg.src = mainBg.src;
-        finalDiv.style.display = "flex";
-
-        downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = `karaoke_${Date.now()}.webm`;
-
-        playRecordingBtn.onclick = () => {
+        
+        finalBg.src = mainBg.src; finalDiv.style.display = "flex";
+        document.getElementById("downloadRecordingBtn").href = url;
+        document.getElementById("downloadRecordingBtn").download = `karaoke_${Date.now()}.webm`;
+        
+        document.getElementById("playRecordingBtn").onclick = () => {
             if (!isPlayingRecording) {
                 playRecordingAudio = new Audio(url);
                 playRecordingAudio.play();
-                playRecordingBtn.innerText = "⏹ Stop";
+                document.getElementById("playRecordingBtn").innerText = "⏹ Stop";
                 isPlayingRecording = true;
                 playRecordingAudio.onended = resetPlayBtn;
-            } else {
-                resetPlayBtn();
-            }
+            } else { resetPlayBtn(); }
         };
     };
-
+    
     mediaRecorder.start();
-
-    originalAudio.currentTime = 0;
-    accompanimentAudio.currentTime = 0;
-    await safePlay(originalAudio);
-    await safePlay(accompanimentAudio);
-
-    playBtn.style.display = "none";
-    recordBtn.style.display = "none";
-    stopBtn.style.display = "inline-block";
+    
+    originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
+    await safePlay(originalAudio); await safePlay(accompanimentAudio);
+    
+    playBtn.style.display = "none"; recordBtn.style.display = "none"; stopBtn.style.display = "inline-block";
     status.innerText = "🎙 Recording...";
 };
 
-/* ================== STOP ================== */
 stopBtn.onclick = () => {
-    if (!isRecording) return;
-    isRecording = false;
-
+    if (!isRecording) return; isRecording = false;
     try { mediaRecorder.stop(); } catch {}
     try { accSource.stop(); } catch {}
-
-    originalAudio.pause();
-    accompanimentAudio.pause();
-
-    stopBtn.style.display = "none";
-    status.innerText = "⏹ Processing...";
+    originalAudio.pause(); accompanimentAudio.pause();
+    stopBtn.style.display = "none"; status.innerText = "⏹ Processing...";
 };
 
-/* ================== HELPERS ================== */
 function resetPlayBtn() {
-    if (playRecordingAudio) {
-        playRecordingAudio.pause();
-        playRecordingAudio.currentTime = 0;
-    }
-    playRecordingBtn.innerText = "▶ Play Recording";
+    if (playRecordingAudio) { playRecordingAudio.pause(); playRecordingAudio.currentTime = 0; }
+    document.getElementById("playRecordingBtn").innerText = "▶ Play Recording";
     isPlayingRecording = false;
 }
 
-/* ================== NEW RECORDING ================== */
-newRecordingBtn.onclick = () => {
+document.getElementById("newRecordingBtn").onclick = () => {
     finalDiv.style.display = "none";
-
-    recordedChunks = [];
-    isRecording = false;
-    isPlayingRecording = false;
-
-    originalAudio.pause();
-    accompanimentAudio.pause();
-    originalAudio.currentTime = 0;
-    accompanimentAudio.currentTime = 0;
-
-    if (playRecordingAudio) {
-        playRecordingAudio.pause();
-        playRecordingAudio = null;
-    }
-
-    playBtn.style.display = "inline-block";
-    recordBtn.style.display = "inline-block";
-    stopBtn.style.display = "none";
-    playBtn.innerText = "▶ Play";
-    status.innerText = "Ready 🎤";
+    recordedChunks = []; isRecording = false; isPlayingRecording = false;
+    originalAudio.pause(); accompanimentAudio.pause(); originalAudio.currentTime = 0; accompanimentAudio.currentTime = 0;
+    if (playRecordingAudio) { playRecordingAudio.pause(); playRecordingAudio = null; }
+    playBtn.style.display = "inline-block"; recordBtn.style.display = "inline-block"; stopBtn.style.display = "none";
+    playBtn.innerText = "▶ Play"; status.innerText = "Ready 🎤";
 };
+
+// READY STATUS after load
+window.onload = () => { status.innerText = "✅ Ready 🎤 | Fast Railway Load"; };
 </script>
 </body>
 </html>
 """
 
-    karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
-    karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
+    karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64)
+    karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64)
+    karaoke_html = karaoke_html.replace("%%ORIGINAL_URL%%", original_url)
+    karaoke_html = karaoke_html.replace("%%ACCOMP_URL%%", accompaniment_url)
 
-    # Add back button
+    # Back button
     col1, col2 = st.columns([5, 1])
     with col2:
         if st.button("← Back", key="back_player"):
@@ -988,7 +823,7 @@ else:
     save_session_to_db()
     st.rerun()
 
-# =============== DEBUG INFO (Hidden by default) ===============
+# =============== DEBUG INFO ===============
 with st.sidebar:
     if st.session_state.get("role") == "admin":
         if st.checkbox("Show Debug Info", key="debug_toggle"):
@@ -998,6 +833,7 @@ with st.sidebar:
             st.write(f"Role: {st.session_state.get('role')}")
             st.write(f"Selected Song: {st.session_state.get('selected_song')}")
             st.write(f"Query Params: {dict(st.query_params)}")
+            st.write(f"APP_URL: {APP_URL}")
             
             if st.button("Force Reset", key="debug_reset"):
                 for key in list(st.session_state.keys()):
