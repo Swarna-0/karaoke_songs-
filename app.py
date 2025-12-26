@@ -35,67 +35,90 @@ os.makedirs(lyrics_dir, exist_ok=True)
 os.makedirs(logo_dir, exist_ok=True)
 os.makedirs(shared_links_dir, exist_ok=True)
 
-# =============== PERSISTENT SESSION DATABASE ===============
+# =============== ENHANCED PERSISTENT SESSION DATABASE ===============
 def init_session_db():
-    """Initialize SQLite database for persistent sessions"""
+    """Initialize SQLite database for persistent sessions with better error handling"""
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
+        
+        # Sessions table
         c.execute('''CREATE TABLE IF NOT EXISTS sessions
                      (session_id TEXT PRIMARY KEY,
                       user TEXT,
                       role TEXT,
                       page TEXT,
                       selected_song TEXT,
+                      query_params TEXT,
                       last_active TIMESTAMP)''')
+        
+        # Shared links table
         c.execute('''CREATE TABLE IF NOT EXISTS shared_links
                      (song_name TEXT PRIMARY KEY,
                       shared_by TEXT,
                       active BOOLEAN,
                       created_at TIMESTAMP)''')
+        
+        # Metadata table
         c.execute('''CREATE TABLE IF NOT EXISTS metadata
                      (song_name TEXT PRIMARY KEY,
                       uploaded_by TEXT,
                       timestamp REAL)''')
+        
+        # Persistence for shared links state
+        c.execute('''CREATE TABLE IF NOT EXISTS link_states
+                     (song_name TEXT PRIMARY KEY,
+                      is_shared BOOLEAN,
+                      last_modified TIMESTAMP)''')
+        
         conn.commit()
         conn.close()
-    except:
-        pass
+        print("✅ Database initialized successfully")
+    except Exception as e:
+        print(f"❌ Database initialization error: {e}")
 
 def save_session_to_db():
-    """Save current session to database"""
+    """Save current session to database with query params"""
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
         session_id = st.session_state.get('session_id', 'default')
         
+        # Save query params as JSON string
+        query_params_str = json.dumps(dict(st.query_params))
+        
         c.execute('''INSERT OR REPLACE INTO sessions 
-                     (session_id, user, role, page, selected_song, last_active)
-                     VALUES (?, ?, ?, ?, ?, ?)''',
+                     (session_id, user, role, page, selected_song, query_params, last_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)''',
                   (session_id,
-                   st.session_state.get('user'),
-                   st.session_state.get('role'),
-                   st.session_state.get('page'),
-                   st.session_state.get('selected_song'),
+                   st.session_state.get('user', 'None'),
+                   st.session_state.get('role', 'None'),
+                   st.session_state.get('page', 'Login'),
+                   st.session_state.get('selected_song', 'None'),
+                   query_params_str,
                    datetime.now()))
         conn.commit()
         conn.close()
-    except:
-        pass
+        return True
+    except Exception as e:
+        print(f"❌ Session save error: {e}")
+        return False
 
 def load_session_from_db():
-    """Load session from database"""
+    """Load session from database with query params"""
     try:
         session_id = st.session_state.get('session_id', 'default')
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
-        c.execute('SELECT user, role, page, selected_song FROM sessions WHERE session_id = ?', 
+        c.execute('SELECT user, role, page, selected_song, query_params FROM sessions WHERE session_id = ?', 
                   (session_id,))
         result = c.fetchone()
         conn.close()
         
         if result:
-            user, role, page, selected_song = result
+            user, role, page, selected_song, query_params_str = result
+            
+            # Restore session state
             if user and user != 'None':
                 st.session_state.user = user
             if role and role != 'None':
@@ -104,54 +127,121 @@ def load_session_from_db():
                 st.session_state.page = page
             if selected_song and selected_song != 'None':
                 st.session_state.selected_song = selected_song
-    except:
-        pass
+            
+            # Restore query params if they exist
+            if query_params_str and query_params_str != 'None':
+                try:
+                    saved_params = json.loads(query_params_str)
+                    if saved_params and isinstance(saved_params, dict):
+                        # Only restore if current params are empty
+                        if not dict(st.query_params):
+                            for key, value in saved_params.items():
+                                st.query_params[key] = value
+                except:
+                    pass
+                    
+            return True
+    except Exception as e:
+        print(f"❌ Session load error: {e}")
+    return False
 
 def save_shared_link_to_db(song_name, shared_by):
-    """Save shared link to database"""
+    """Save shared link to database with persistence"""
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
+        
+        # Save to shared_links table
         c.execute('''INSERT OR REPLACE INTO shared_links 
                      (song_name, shared_by, active, created_at)
                      VALUES (?, ?, ?, ?)''',
                   (song_name, shared_by, True, datetime.now()))
+        
+        # Also save to link_states for persistence
+        c.execute('''INSERT OR REPLACE INTO link_states 
+                     (song_name, is_shared, last_modified)
+                     VALUES (?, ?, ?)''',
+                  (song_name, True, datetime.now()))
+        
         conn.commit()
         conn.close()
-    except:
-        pass
+        print(f"✅ Saved shared link for: {song_name}")
+        return True
+    except Exception as e:
+        print(f"❌ Shared link save error: {e}")
+        return False
 
 def delete_shared_link_from_db(song_name):
     """Delete shared link from database"""
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
-        c.execute('DELETE FROM shared_links WHERE song_name = ?', (song_name,))
+        
+        # Update active status instead of deleting
+        c.execute('UPDATE shared_links SET active = 0 WHERE song_name = ?', (song_name,))
+        
+        # Update link_states
+        c.execute('''INSERT OR REPLACE INTO link_states 
+                     (song_name, is_shared, last_modified)
+                     VALUES (?, ?, ?)''',
+                  (song_name, False, datetime.now()))
+        
         conn.commit()
         conn.close()
-    except:
-        pass
+        print(f"✅ Deleted shared link for: {song_name}")
+        return True
+    except Exception as e:
+        print(f"❌ Shared link delete error: {e}")
+        return False
 
 def load_shared_links_from_db():
-    """Load shared links from database"""
+    """Load shared links from database with fallback to file"""
     links = {}
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
-        c.execute('SELECT song_name, shared_by FROM shared_links WHERE active = 1')
-        results = c.fetchall()
-        conn.close()
         
-        for song_name, shared_by in results:
-            links[song_name] = {"shared_by": shared_by, "active": True}
-    except:
-        pass
+        # Try to get from link_states first (more persistent)
+        c.execute('SELECT song_name, is_shared FROM link_states')
+        state_results = c.fetchall()
+        
+        if state_results:
+            for song_name, is_shared in state_results:
+                if is_shared:
+                    # Get additional info from shared_links
+                    c.execute('SELECT shared_by FROM shared_links WHERE song_name = ? AND active = 1', (song_name,))
+                    link_info = c.fetchone()
+                    shared_by = link_info[0] if link_info else "unknown"
+                    links[song_name] = {"shared_by": shared_by, "active": True}
+        else:
+            # Fallback to shared_links table
+            c.execute('SELECT song_name, shared_by FROM shared_links WHERE active = 1')
+            results = c.fetchall()
+            for song_name, shared_by in results:
+                links[song_name] = {"shared_by": shared_by, "active": True}
+                
+        conn.close()
+    except Exception as e:
+        print(f"❌ Shared links load error: {e}")
+        # Fallback to file system
+        if os.path.exists(shared_links_dir):
+            for filename in os.listdir(shared_links_dir):
+                if filename.endswith('.json'):
+                    song_name = filename[:-5]
+                    filepath = os.path.join(shared_links_dir, filename)
+                    try:
+                        with open(filepath, 'r') as f:
+                            data = json.load(f)
+                            if data.get("active", True):
+                                links[song_name] = data
+                    except:
+                        pass
     return links
 
 def save_metadata_to_db(song_name, uploaded_by):
     """Save metadata to database"""
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
         c.execute('''INSERT OR REPLACE INTO metadata 
                      (song_name, uploaded_by, timestamp)
@@ -159,14 +249,16 @@ def save_metadata_to_db(song_name, uploaded_by):
                   (song_name, uploaded_by, time.time()))
         conn.commit()
         conn.close()
-    except:
-        pass
+        return True
+    except Exception as e:
+        print(f"❌ Metadata save error: {e}")
+        return False
 
 def load_metadata_from_db():
-    """Load metadata from database"""
+    """Load metadata from database with file fallback"""
     metadata = {}
     try:
-        conn = sqlite3.connect(session_db_path)
+        conn = sqlite3.connect(session_db_path, check_same_thread=False)
         c = conn.cursor()
         c.execute('SELECT song_name, uploaded_by FROM metadata')
         results = c.fetchall()
@@ -175,13 +267,19 @@ def load_metadata_from_db():
         for song_name, uploaded_by in results:
             metadata[song_name] = {"uploaded_by": uploaded_by, "timestamp": str(time.time())}
     except:
-        pass
+        # Fallback to file
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, "r") as f:
+                    metadata = json.load(f)
+            except:
+                metadata = {}
     return metadata
 
-# Initialize database
+# Initialize database at startup
 init_session_db()
 
-# =============== HELPER FUNCTIONS ===============
+# =============== ENHANCED HELPER FUNCTIONS ===============
 def file_to_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
@@ -192,33 +290,41 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_metadata():
-    """Load metadata from both file and database"""
-    file_metadata = {}
+    """Load metadata with database priority"""
+    db_metadata = load_metadata_from_db()
+    if db_metadata:
+        return db_metadata
+    
+    # Fallback to file
     if os.path.exists(metadata_path):
         try:
             with open(metadata_path, "r") as f:
-                file_metadata = json.load(f)
+                return json.load(f)
         except:
-            file_metadata = {}
-    
-    # Merge with database metadata
-    db_metadata = load_metadata_from_db()
-    file_metadata.update(db_metadata)
-    return file_metadata
+            return {}
+    return {}
 
 def save_metadata(data):
     """Save metadata to both file and database"""
-    # Save to file
-    with open(metadata_path, "w") as f:
-        json.dump(data, f, indent=2)
-    
-    # Save to database
+    # Save to database first
     for song_name, info in data.items():
         uploaded_by = info.get("uploaded_by", "unknown")
         save_metadata_to_db(song_name, uploaded_by)
+    
+    # Also save to file for backup
+    try:
+        with open(metadata_path, "w") as f:
+            json.dump(data, f, indent=2)
+    except:
+        pass
 
 def load_shared_links():
-    """Load shared links from both file and database"""
+    """Load shared links with database priority"""
+    db_links = load_shared_links_from_db()
+    if db_links:
+        return db_links
+    
+    # Fallback to files
     file_links = {}
     if os.path.exists(shared_links_dir):
         for filename in os.listdir(shared_links_dir):
@@ -232,32 +338,41 @@ def load_shared_links():
                             file_links[song_name] = data
                 except:
                     pass
-    
-    # Merge with database links
-    db_links = load_shared_links_from_db()
-    file_links.update(db_links)
     return file_links
 
 def save_shared_link(song_name, link_data):
-    """Save shared link to both file and database"""
-    # Save to file
-    filepath = os.path.join(shared_links_dir, f"{song_name}.json")
-    with open(filepath, 'w') as f:
-        json.dump(link_data, f)
-    
+    """Save shared link with multiple persistence layers"""
     # Save to database
     shared_by = link_data.get("shared_by", "unknown")
     save_shared_link_to_db(song_name, shared_by)
+    
+    # Also save to file for redundancy
+    try:
+        filepath = os.path.join(shared_links_dir, f"{song_name}.json")
+        with open(filepath, 'w') as f:
+            json.dump(link_data, f)
+    except:
+        pass
 
 def delete_shared_link(song_name):
-    """Delete shared link from both file and database"""
-    # Delete from file
+    """Delete shared link from both storage layers"""
+    # Update database
+    delete_shared_link_from_db(song_name)
+    
+    # Update file
     filepath = os.path.join(shared_links_dir, f"{song_name}.json")
     if os.path.exists(filepath):
-        os.remove(filepath)
-    
-    # Delete from database
-    delete_shared_link_from_db(song_name)
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            data["active"] = False
+            with open(filepath, 'w') as f:
+                json.dump(data, f)
+        except:
+            try:
+                os.remove(filepath)
+            except:
+                pass
 
 def get_uploaded_songs(show_unshared=False):
     """Get list of uploaded songs"""
@@ -279,49 +394,76 @@ def check_and_create_session_id():
     if 'session_id' not in st.session_state:
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
+        print(f"🆕 Created new session ID: {st.session_state.session_id}")
 
 # =============== INITIALIZE SESSION ===============
 check_and_create_session_id()
 
-# Initialize session state with default values
-if "user" not in st.session_state:
-    st.session_state.user = None
-if "role" not in st.session_state:
-    st.session_state.role = None
-if "page" not in st.session_state:
-    st.session_state.page = "Login"
-if "selected_song" not in st.session_state:
-    st.session_state.selected_song = None
+# Initialize session state with defaults
+defaults = {
+    "user": None,
+    "role": None,
+    "page": "Login",
+    "selected_song": None,
+    "initialized": False
+}
+
+for key, default_value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
 # Load persistent session data
-load_session_from_db()
+if not st.session_state.get("initialized", False):
+    load_session_from_db()
+    st.session_state.initialized = True
+    print(f"🔄 Session initialized: {st.session_state}")
 
+# Load metadata
 metadata = load_metadata()
 
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
-if not os.path.exists(default_logo_path):
-    # Don't show uploader on login page to avoid rerun issues
-    pass
 logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
 
-# =============== CHECK FOR DIRECT SONG LINK ===============
+# =============== CRITICAL: CHECK FOR DIRECT SONG LINK FIRST ===============
 query_params = st.query_params
-if "song" in query_params and st.session_state.page == "Login":
+print(f"🔍 Query params on load: {dict(query_params)}")
+
+# Check for song link BEFORE anything else
+if "song" in query_params:
     song_from_url = unquote(query_params["song"])
-    shared_links = load_shared_links()
-    if song_from_url in shared_links:
-        st.session_state.selected_song = song_from_url
-        st.session_state.page = "Song Player"
-        st.session_state.user = "guest"
-        st.session_state.role = "guest"
-        save_session_to_db()
+    print(f"🎵 Song from URL: {song_from_url}")
+    
+    # Check if song exists
+    original_path = os.path.join(songs_dir, f"{song_from_url}_original.mp3")
+    if os.path.exists(original_path):
+        # Check if shared
+        shared_links = load_shared_links()
+        is_shared = song_from_url in shared_links
+        
+        if is_shared or st.session_state.get("role") == "admin":
+            # Direct access to song player
+            st.session_state.selected_song = song_from_url
+            st.session_state.page = "Song Player"
+            
+            # Set user/role if not set
+            if not st.session_state.user:
+                st.session_state.user = "guest"
+                st.session_state.role = "guest"
+            
+            save_session_to_db()
+            print(f"✅ Direct song access granted: {song_from_url}")
+        else:
+            print(f"❌ Song not shared: {song_from_url}")
+    else:
+        print(f"❌ Song file not found: {song_from_url}")
+
+# =============== PAGE ROUTING ===============
+# Always save session state changes
+save_session_to_db()
 
 # =============== RESPONSIVE LOGIN PAGE ===============
 if st.session_state.page == "Login":
-    # Save session state
-    save_session_to_db()
-    
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {display:none;}
@@ -331,19 +473,17 @@ if st.session_state.page == "Login":
         background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
     }
 
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
     .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
+        padding: 1.8rem 2.2rem 2.2rem 2.2rem;
     }
 
-    /* CENTERED HEADER SECTION */
     .login-header {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
+        gap: 0.8rem;
+        margin-bottom: 1.6rem;
         text-align: center;
     }
 
@@ -367,24 +507,12 @@ if st.session_state.page == "Login":
         width: 100%;
     }
 
-    /* CREDENTIALS INFO */
-    .credentials-info {
-        background: rgba(5,10,25,0.8);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 0.85rem;
-        color: #b5c2d2;
-    }
-
-    /* INPUTS BLEND WITH BOX */
     .stTextInput input {
         background: rgba(5,10,25,0.7) !important;
         border-radius: 10px !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
+        padding: 12px 14px !important;
     }
 
     .stTextInput input:focus {
@@ -394,9 +522,9 @@ if st.session_state.page == "Login":
 
     .stButton button {
         width: 100%;
-        height: 44px; /* Slightly taller */
+        height: 44px;
         background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
+        border-radius: 10px;
         font-weight: 600;
         margin-top: 0.6rem;
         color: white;
@@ -405,13 +533,11 @@ if st.session_state.page == "Login":
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
 
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
 
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -459,7 +585,6 @@ if st.session_state.page == "Login":
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
@@ -527,17 +652,33 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         all_songs = get_uploaded_songs(show_unshared=True)
         shared_links_data = load_shared_links()
 
+        # Load link states from database for persistence
+        link_states = {}
+        try:
+            conn = sqlite3.connect(session_db_path, check_same_thread=False)
+            c = conn.cursor()
+            c.execute('SELECT song_name, is_shared FROM link_states')
+            results = c.fetchall()
+            conn.close()
+            link_states = {row[0]: row[1] for row in results}
+        except:
+            pass
+
         for song in all_songs:
             col1, col2, col3, col4 = st.columns([2.5, 1, 1, 1.5])
             safe_song = quote(song)
-            is_shared = song in shared_links_data
+            
+            # Check both sources for shared status
+            is_shared_in_db = link_states.get(song, False)
+            is_shared_in_file = song in shared_links_data
+            is_shared = is_shared_in_db or is_shared_in_file
 
             with col1:
-                status = "✅ SHARED" if is_shared else "❌ **NOT SHARED"
+                status = "✅ SHARED" if is_shared else "❌ NOT SHARED"
                 st.write(f"{song} - {status}")
 
             with col2:
-                if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
+                if st.button("🔄 Toggle", key=f"toggle_{song}"):
                     if is_shared:
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users can no longer see this song.")
@@ -570,7 +711,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
 
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👤 User Dashboard - {st.session_state.user}")
@@ -602,7 +742,6 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
 
 # =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-    # Auto-save session
     save_session_to_db()
     
     st.markdown("""
@@ -637,7 +776,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
             st.rerun()
         st.stop()
 
-    # Double-check access permission
+    # Check access permission
     shared_links = load_shared_links()
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
@@ -668,7 +807,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # Karaoke HTML template
     karaoke_template = """
 <!doctype html>
 <html>
@@ -796,7 +935,7 @@ playBtn.onclick = async () => {
     }
 };
 
-/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
+/* ================== CANVAS DRAW ================== */
 function drawCanvas() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -817,11 +956,11 @@ function drawCanvas() {
     }
 
     const x = (canvasW - drawW) / 2;
-    const y = 0; // TOP aligned
+    const y = 0;
 
     ctx.drawImage(mainBg, x, y, drawW, drawH);
 
-    /* LOGO — exact Django feel */
+    /* LOGO */
     ctx.globalAlpha = 0.6;
     ctx.drawImage(logoImg, 20, 20, 60, 60);
     ctx.globalAlpha = 1;
@@ -988,7 +1127,7 @@ else:
     save_session_to_db()
     st.rerun()
 
-# =============== DEBUG INFO (Hidden by default) ===============
+# =============== DEBUG INFO ===============
 with st.sidebar:
     if st.session_state.get("role") == "admin":
         if st.checkbox("Show Debug Info", key="debug_toggle"):
@@ -998,6 +1137,14 @@ with st.sidebar:
             st.write(f"Role: {st.session_state.get('role')}")
             st.write(f"Selected Song: {st.session_state.get('selected_song')}")
             st.write(f"Query Params: {dict(st.query_params)}")
+            st.write(f"Session ID: {st.session_state.get('session_id')}")
+            
+            # Show shared links
+            st.write("### Shared Links Status")
+            shared_links = load_shared_links()
+            st.write(f"Total shared songs: {len(shared_links)}")
+            for song, info in shared_links.items():
+                st.write(f"- {song}: {info.get('shared_by', 'unknown')}")
             
             if st.button("Force Reset", key="debug_reset"):
                 for key in list(st.session_state.keys()):
