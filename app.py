@@ -645,16 +645,18 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
-        if st.button("Go Back"):
-            if st.session_state.role == "admin":
-                st.session_state.page = "Admin Dashboard"
-            elif st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-            else:
-                st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
+
+        if st.session_state.role in ["admin", "user"]:
+            if st.button("← Back"):
+                if st.session_state.role == "admin":
+                    st.session_state.page = "Admin Dashboard"
+                else:
+                    st.session_state.page = "User Dashboard"
+                save_session_to_db()
+                st.rerun()
+
         st.stop()
+
 
     # Double-check access permission
     shared_links = load_shared_links()
@@ -988,19 +990,21 @@ newRecordingBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
     # Add back button
-    col1, col2 = st.columns([5, 1])
-    with col2:
-        if st.button("← Back", key="back_player"):
-            if st.session_state.role == "admin":
-                st.session_state.page = "Admin Dashboard"
-                st.session_state.selected_song = None  # Clear song selection
-            elif st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-                st.session_state.selected_song = None  # Clear song selection
-            else:
-                st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
+    # ✅ Show Back button ONLY for admin & user
+    if st.session_state.role in ["admin", "user"]:
+        col1, col2 = st.columns([5, 1])
+        with col2:
+            if st.button("← Back", key="back_player"):
+                if st.session_state.role == "admin":
+                    st.session_state.page = "Admin Dashboard"
+                elif st.session_state.role == "user":
+                    st.session_state.page = "User Dashboard"
+
+                # ❌ Do NOT send to Login
+                st.session_state.selected_song = None
+                save_session_to_db()
+                st.rerun()
+
 
     html(karaoke_html, height=800, width=1920, scrolling=False)
 
