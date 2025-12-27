@@ -529,8 +529,11 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     if st.button("▶ Play", key=f"play_{s}_{idx}"):
                         st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
+
+                        st.query_params["song"] = quote(s)
                         save_session_to_db()
                         st.rerun()
+
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
                     st.markdown(f"[🔗 Share Link]({share_url})")
@@ -603,8 +606,11 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                 if st.button("▶ Play", key=f"user_play_{song}_{idx}"):
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
+
+                    st.query_params["song"] = quote(song)
                     save_session_to_db()
                     st.rerun()
+
 
     if st.button("🚪 Logout", key="user_logout"):
         for key in list(st.session_state.keys()):
@@ -656,9 +662,17 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     is_admin = st.session_state.role == "admin"
     is_guest = st.session_state.role == "guest"
 
-    if not (is_shared or is_admin):
+# Allow if:
+# 1. Admin
+# 2. User already inside app (dashboard nundi vacharu)
+# 3. Guest with shared link
+
+    came_from_dashboard = st.session_state.role in ["admin", "user"]
+
+    if not (is_admin or came_from_dashboard or is_shared):
         st.error("❌ Access denied!")
         st.stop()
+
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
