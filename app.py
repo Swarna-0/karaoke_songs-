@@ -298,6 +298,7 @@ def process_query_params():
 
         save_session_to_db()
 
+
 # =============== INITIALIZE SESSION ===============
 check_and_create_session_id()
 
@@ -322,11 +323,13 @@ metadata = load_metadata()
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
 if not os.path.exists(default_logo_path):
+    # Don't show uploader on login page to avoid rerun issues
     pass
 logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
 
-# =============== RESPONSIVE LOGIN PAGE (SAME AS BEFORE) ===============
+# =============== RESPONSIVE LOGIN PAGE ===============
 if st.session_state.page == "Login":
+    # Save session state
     save_session_to_db()
     
     st.markdown("""
@@ -338,17 +341,19 @@ if st.session_state.page == "Login":
         background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
     }
 
+    /* INNER CONTENT PADDING - Reduced since box has padding now */
     .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem;
+        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
     }
 
+    /* CENTERED HEADER SECTION */
     .login-header {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.8rem;
-        margin-bottom: 1.6rem;
+        gap: 0.8rem; /* Slightly more gap */
+        margin-bottom: 1.6rem; /* More bottom margin */
         text-align: center;
     }
 
@@ -372,12 +377,24 @@ if st.session_state.page == "Login":
         width: 100%;
     }
 
+    /* CREDENTIALS INFO */
+    .credentials-info {
+        background: rgba(5,10,25,0.8);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 16px;
+        font-size: 0.85rem;
+        color: #b5c2d2;
+    }
+
+    /* INPUTS BLEND WITH BOX */
     .stTextInput input {
         background: rgba(5,10,25,0.7) !important;
         border-radius: 10px !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important;
+        padding: 12px 14px !important; /* Better input padding */
     }
 
     .stTextInput input:focus {
@@ -387,9 +404,9 @@ if st.session_state.page == "Login":
 
     .stButton button {
         width: 100%;
-        height: 44px;
+        height: 44px; /* Slightly taller */
         background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px;
+        border-radius: 10px; /* Match input radius */
         font-weight: 600;
         margin-top: 0.6rem;
         color: white;
@@ -398,9 +415,13 @@ if st.session_state.page == "Login":
     </style>
     """, unsafe_allow_html=True)
 
+    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
+
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
+
+        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -421,21 +442,21 @@ if st.session_state.page == "Login":
                     st.session_state.user = username
                     st.session_state.role = "admin"
                     st.session_state.page = "Admin Dashboard"
-                    st.session_state.selected_song = None
+                    st.session_state.selected_song = None  # Clear any song selection
                     save_session_to_db()
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
-                    st.session_state.selected_song = None
+                    st.session_state.selected_song = None  # Clear any song selection
                     save_session_to_db()
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
-                    st.session_state.selected_song = None
+                    st.session_state.selected_song = None  # Clear any song selection
                     save_session_to_db()
                     st.rerun()
                 else:
@@ -446,685 +467,161 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
+
         st.markdown('</div></div>', unsafe_allow_html=True)
 
-# =============== ADMIN DASHBOARD WITH DJANGO UI ===============
+# =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
+    # Auto-save session
     save_session_to_db()
     
-    # ✅ DJANGO-STYLE ADMIN DASHBOARD CSS
-    st.markdown("""
-    <style>
-    /* Hide Streamlit default elements */
-    [data-testid="stSidebar"] {display: none !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    
-    /* Django-style Admin Dashboard */
-    .django-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px;
-        font-family: Arial, sans-serif;
-        background: #111;
-        color: white;
-    }
-    
-    .django-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid #333;
-    }
-    
-    .django-title {
-        font-size: 28px;
-        font-weight: bold;
-        background: linear-gradient(135deg, #ff0066, #ff66cc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    
-    .django-tabs {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 30px;
-        flex-wrap: wrap;
-    }
-    
-    .django-tab-btn {
-        background: #222;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 16px;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-        transition: all 0.3s;
-    }
-    
-    .django-tab-btn:hover {
-        background: #333;
-    }
-    
-    .django-tab-btn.active {
-        background: linear-gradient(135deg, #ff0066, #ff66cc);
-    }
-    
-    .django-card {
-        background: #222;
-        padding: 25px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        border: 1px solid #333;
-    }
-    
-    .django-song-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 18px;
-        border-bottom: 1px solid #333;
-        transition: background 0.3s;
-    }
-    
-    .django-song-item:hover {
-        background: #2a2a2a;
-    }
-    
-    .django-btn {
-        background: linear-gradient(135deg, #ff0066, #ff66cc);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 25px;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 14px;
-        transition: opacity 0.3s;
-    }
-    
-    .django-btn:hover {
-        opacity: 0.9;
-    }
-    
-    .django-btn.logout {
-        background: linear-gradient(135deg, #1f2937, #020712);
-    }
-    
-    .django-btn.shared {
-        background: linear-gradient(135deg, #00ff88, #66ffcc);
-    }
-    
-    .django-btn.private {
-        background: linear-gradient(135deg, #ff9900, #ffcc00);
-    }
-    
-    .django-url {
-        word-break: break-all;
-        font-size: 12px;
-        color: #aaa;
-        margin-top: 5px;
-        padding: 5px;
-        background: #2a2a2a;
-        border-radius: 5px;
-    }
-    
-    .django-upload-form {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-    
-    .django-file-input {
-        background: #333;
-        color: white;
-        border: 1px solid #555;
-        padding: 15px;
-        border-radius: 8px;
-        font-size: 16px;
-        min-height: 60px;
-        display: flex;
-        align-items: center;
-    }
-    
-    .django-text-input {
-        background: #333;
-        color: white;
-        border: 1px solid #555;
-        padding: 15px;
-        border-radius: 8px;
-        font-size: 16px;
-        width: 100%;
-    }
-    
-    .django-text-input::placeholder {
-        color: #aaa;
-    }
-    
-    .django-stats {
-        display: flex;
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    
-    .django-stat-card {
-        background: #222;
-        padding: 20px;
-        border-radius: 10px;
-        flex: 1;
-        text-align: center;
-        border: 1px solid #333;
-    }
-    
-    .django-stat-number {
-        font-size: 32px;
-        font-weight: bold;
-        background: linear-gradient(135deg, #ff0066, #ff66cc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    
-    .django-stat-label {
-        font-size: 14px;
-        color: #aaa;
-        margin-top: 5px;
-    }
-    
-    .share-url-container {
-        margin-top: 10px;
-        padding: 10px;
-        background: #2a2a2a;
-        border-radius: 5px;
-        border-left: 4px solid #ff0066;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Initialize admin page state
-    if 'admin_page' not in st.session_state:
-        st.session_state.admin_page = "upload"
-    
-    # Get songs data
-    all_songs = get_uploaded_songs(show_unshared=True)
-    shared_songs = get_uploaded_songs(show_unshared=False)
-    shared_links = load_shared_links()
-    
-    # Django-style Admin Dashboard HTML
-    admin_html = f"""
-    <div class="django-container">
-        <div class="django-header">
-            <div class="django-title">👑 Admin Dashboard - {st.session_state.user}</div>
-            <button class="django-btn logout" onclick="window.location.href='?logout=true'">🚪 Logout</button>
-        </div>
-        
-        <div class="django-stats">
-            <div class="django-stat-card">
-                <div class="django-stat-number">{len(all_songs)}</div>
-                <div class="django-stat-label">Total Songs</div>
-            </div>
-            <div class="django-stat-card">
-                <div class="django-stat-number">{len(shared_songs)}</div>
-                <div class="django-stat-label">Shared Songs</div>
-            </div>
-            <div class="django-stat-card">
-                <div class="django-stat-number">{len(all_songs) - len(shared_songs)}</div>
-                <div class="django-stat-label">Private Songs</div>
-            </div>
-        </div>
-        
-        <div class="django-tabs">
-            <button class="django-tab-btn {'active' if st.session_state.admin_page == 'upload' else ''}" 
-                    onclick="window.location.href='?admin_page=upload'">📤 Upload Songs</button>
-            <button class="django-tab-btn {'active' if st.session_state.admin_page == 'songs' else ''}" 
-                    onclick="window.location.href='?admin_page=songs'">🎵 Songs List</button>
-            <button class="django-tab-btn {'active' if st.session_state.admin_page == 'share' else ''}" 
-                    onclick="window.location.href='?admin_page=share'">🔗 Share Links</button>
-        </div>
-    """
-    
-    # Handle query parameters for admin page
-    if "admin_page" in st.query_params:
-        st.session_state.admin_page = st.query_params["admin_page"]
-    
-    # Upload Songs Page
-    if st.session_state.admin_page == "upload":
-        admin_html += """
-        <div class="django-card">
-            <h3 style="margin-top:0;margin-bottom:20px;color:#ff66cc;">📤 Upload New Song</h3>
-            <div class="django-upload-form">
-                <input type="text" class="django-text-input" id="songTitleInput" 
-                       placeholder="🎵 Enter Song Title (e.g. 'Shape of You')">
-                <input type="file" class="django-file-input" id="originalFileInput" accept=".mp3">
-                <input type="file" class="django-file-input" id="accompanimentFileInput" accept=".mp3">
-                <input type="file" class="django-file-input" id="lyricsImageInput" accept="image/*">
-                <button class="django-btn" style="width:100%;padding:15px;font-size:16px;" 
-                        onclick="uploadSong()">🚀 Upload Song</button>
-            </div>
-        </div>
-        """
-    
-    # Songs List Page
-    elif st.session_state.admin_page == "songs":
-        admin_html += f"""
-        <div class="django-card">
-            <h3 style="margin-top:0;margin-bottom:20px;color:#ff66cc;">🎵 All Songs List ({len(all_songs)})</h3>
-        """
-        
-        if not all_songs:
-            admin_html += """
-            <div style="text-align:center;padding:40px;color:#ccc;">
-                <h3>❌ No songs uploaded yet</h3>
-                <p>Upload your first song to get started!</p>
-            </div>
-            """
-        else:
-            for idx, song in enumerate(all_songs):
-                is_shared = song in shared_links
-                uploaded_by = metadata.get(song, {}).get('uploaded_by', 'Unknown')
-                safe_song = quote(song)
-                share_url = f"{APP_URL}?song={safe_song}"
-                
-                admin_html += f"""
-                <div class="django-song-item">
-                    <div>
-                        <strong style="font-size:16px;">{song}</strong><br>
-                        <small style="color:#aaa;">Uploaded by: {uploaded_by}</small>
-                    </div>
-                    <div style="text-align:right;min-width:300px;">
-                        <button class="django-btn" onclick="playSong('{song}')" 
-                                style="margin-right:10px;">▶️ Play</button>
-                        <button class="django-btn {'shared' if is_shared else 'private'}" 
-                                onclick="toggleShare('{song}', this)">
-                            {'✅ Shared' if is_shared else '🔒 Private'}
-                        </button>
-                        {f'<div class="django-url">{share_url}</div>' if is_shared else ''}
-                    </div>
-                </div>
-                """
-        
-        admin_html += "</div>"
-    
-    # Share Links Page
-    elif st.session_state.admin_page == "share":
-        admin_html += f"""
-        <div class="django-card">
-            <h3 style="margin-top:0;margin-bottom:20px;color:#ff66cc;">🔗 Manage Shared Links</h3>
-        """
-        
-        for song in all_songs:
-            is_shared = song in shared_links
-            safe_song = quote(song)
-            share_url = f"{APP_URL}?song={safe_song}"
-            
-            admin_html += f"""
-            <div class="django-song-item">
-                <div style="flex:1;">
-                    <strong>{song}</strong>
-                    <div style="font-size:14px;color: {'#00ff88' if is_shared else '#ff9900'};">
-                        {('✅ SHARED' if is_shared else '❌ NOT SHARED')}
-                    </div>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <button class="django-btn" onclick="toggleShare('{song}', this)">
-                        🔄 Toggle Share
-                    </button>
-                    {'<button class="django-btn private" onclick="unshareSong(\'' + song + '\', this)">🚫 Unshare</button>' if is_shared else ''}
-                    <button class="django-btn" onclick="copyShareLink('{share_url}')">📋 Copy Link</button>
-                </div>
-            </div>
-            """
-        
-        admin_html += "</div>"
-    
-    admin_html += """
-    </div>
-    
-    <script>
-    function playSong(songName) {
-        window.location.href = '?song=' + encodeURIComponent(songName);
-    }
-    
-    function toggleShare(songName, btn) {
-        btn.disabled = true;
-        const originalText = btn.innerText;
-        btn.innerText = '⏳...';
-        
-        // Simulate API call - In Streamlit we'll use query params
-        window.location.href = '?toggle_share=' + encodeURIComponent(songName);
-    }
-    
-    function unshareSong(songName, btn) {
-        if (confirm('Are you sure you want to unshare "' + songName + '"?')) {
-            window.location.href = '?unshare=' + encodeURIComponent(songName);
-        }
-    }
-    
-    function copyShareLink(url) {
-        navigator.clipboard.writeText(url).then(() => {
-            alert('✅ Link copied to clipboard!\\n' + url);
-        });
-    }
-    
-    function uploadSong() {
-        alert('In Streamlit version, please use the file uploader in the sidebar.');
-    }
-    </script>
-    """
-    
-    # Render the admin dashboard
-    html(admin_html, height=800, scrolling=True)
-    
-    # Handle sidebar actions for file uploads (Streamlit native)
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 📁 File Upload")
-        
-        # Song title input
-        song_title = st.text_input("🎵 Song Title", 
-                                  placeholder="Enter song name (e.g. Shape of You)",
-                                  key="song_title_input")
-        
-        # File uploaders
-        uploaded_original = st.file_uploader("Original Song (.mp3)", 
-                                            type=["mp3"], 
-                                            key="original_upload_admin")
-        uploaded_accompaniment = st.file_uploader("Accompaniment (.mp3)", 
-                                                 type=["mp3"], 
-                                                 key="acc_upload_admin")
-        uploaded_lyrics_image = st.file_uploader("Lyrics Image (.jpg/.png)", 
-                                                type=["jpg", "jpeg", "png"], 
-                                                key="lyrics_upload_admin")
-        
-        if st.button("🚀 Upload Song", key="upload_btn_admin"):
-            if not song_title:
-                st.error("Please enter a song title!")
-            elif not uploaded_original or not uploaded_accompaniment:
-                st.error("Please upload both original and accompaniment files!")
-            else:
-                # Process upload
-                song_name = song_title.strip()
-                original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
-                acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
-                
-                with open(original_path, "wb") as f:
-                    f.write(uploaded_original.getbuffer())
-                with open(acc_path, "wb") as f:
-                    f.write(uploaded_accompaniment.getbuffer())
-                
-                # Save lyrics image if provided
-                if uploaded_lyrics_image:
-                    lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
-                    lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
-                    with open(lyrics_path, "wb") as f:
-                        f.write(uploaded_lyrics_image.getbuffer())
-                
-                # Update metadata
-                metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(time.time())}
-                save_metadata(metadata)
-                
-                st.success(f"✅ Uploaded: {song_name}")
-                st.balloons()
-                time.sleep(1)
-                st.rerun()
-        
-        st.markdown("---")
-        st.markdown("### ⚙️ Quick Actions")
-        
-        # Handle toggle share from query params
-        if "toggle_share" in st.query_params:
-            song_to_toggle = unquote(st.query_params["toggle_share"])
-            if song_to_toggle in shared_links:
-                delete_shared_link(song_to_toggle)
-                st.success(f"✅ {song_to_toggle} unshared!")
-            else:
-                save_shared_link(song_to_toggle, {"shared_by": st.session_state.user, "active": True})
-                st.success(f"✅ {song_to_toggle} shared!")
-            time.sleep(0.5)
-            st.query_params.clear()
-            st.rerun()
-        
-        # Handle unshare from query params
-        if "unshare" in st.query_params:
-            song_to_unshare = unquote(st.query_params["unshare"])
-            delete_shared_link(song_to_unshare)
-            st.success(f"✅ {song_to_unshare} unshared!")
-            time.sleep(0.5)
-            st.query_params.clear()
-            st.rerun()
-        
-        # Handle logout
-        if "logout" in st.query_params:
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
-        
-        # Refresh button
-        if st.button("🔄 Refresh", key="refresh_admin"):
+    st.title(f"👑 Admin Dashboard - {st.session_state.user}")
+
+    page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"], key="admin_nav")
+
+    if page_sidebar == "Upload Songs":
+        st.subheader("📤 Upload New Song")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            uploaded_original = st.file_uploader("Original Song (_original.mp3)", type=["mp3"], key="original_upload")
+        with col2:
+            uploaded_accompaniment = st.file_uploader("Accompaniment (_accompaniment.mp3)", type=["mp3"], key="acc_upload")
+        with col3:
+            uploaded_lyrics_image = st.file_uploader("Lyrics Image (_lyrics_bg.jpg/png)", type=["jpg", "jpeg", "png"], key="lyrics_upload")
+
+        if uploaded_original and uploaded_accompaniment and uploaded_lyrics_image:
+            song_name = uploaded_original.name.replace("_original.mp3", "").strip()
+            if not song_name:
+                song_name = os.path.splitext(uploaded_original.name)[0]
+
+            original_path = os.path.join(songs_dir, f"{song_name}_original.mp3")
+            acc_path = os.path.join(songs_dir, f"{song_name}_accompaniment.mp3")
+            lyrics_ext = os.path.splitext(uploaded_lyrics_image.name)[1]
+            lyrics_path = os.path.join(lyrics_dir, f"{song_name}_lyrics_bg{lyrics_ext}")
+
+            with open(original_path, "wb") as f:
+                f.write(uploaded_original.getbuffer())
+            with open(acc_path, "wb") as f:
+                f.write(uploaded_accompaniment.getbuffer())
+            with open(lyrics_path, "wb") as f:
+                f.write(uploaded_lyrics_image.getbuffer())
+
+            metadata[song_name] = {"uploaded_by": st.session_state.user, "timestamp": str(time.time())}
+            save_metadata(metadata)
+            st.success(f"✅ Uploaded: {song_name}")
+            st.balloons()
+            time.sleep(1)
             st.rerun()
 
-# =============== USER DASHBOARD WITH DJANGO UI ===============
-elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    save_session_to_db()
-    
-    # ✅ DJANGO-STYLE USER DASHBOARD CSS
-    st.markdown("""
-    <style>
-    /* Hide Streamlit default elements */
-    [data-testid="stSidebar"] {display: none !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    
-    /* Django-style User Dashboard */
-    .user-container {
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 20px;
-        font-family: Arial, sans-serif;
-        background: #111;
-        color: white;
-    }
-    
-    .user-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid #333;
-    }
-    
-    .user-title {
-        font-size: 28px;
-        font-weight: bold;
-        background: linear-gradient(135deg, #00a8ff, #0097e6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    
-    .user-song-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px;
-        background: #222;
-        margin-bottom: 10px;
-        border-radius: 10px;
-        border-left: 5px solid #00ff88;
-        transition: transform 0.3s, background 0.3s;
-    }
-    
-    .user-song-item:hover {
-        transform: translateY(-2px);
-        background: #2a2a2a;
-    }
-    
-    .user-btn {
-        background: linear-gradient(135deg, #00a8ff, #0097e6);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 25px;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 16px;
-        font-weight: bold;
-        transition: opacity 0.3s, transform 0.3s;
-    }
-    
-    .user-btn:hover {
-        opacity: 0.9;
-        transform: scale(1.05);
-    }
-    
-    .user-btn.logout {
-        background: linear-gradient(135deg, #1f2937, #020712);
-    }
-    
-    .user-no-songs {
-        text-align: center;
-        padding: 60px 20px;
-        background: #222;
-        border-radius: 10px;
-        margin-top: 20px;
-        border: 2px dashed #555;
-    }
-    
-    .user-song-info {
-        flex: 1;
-    }
-    
-    .user-song-name {
-        font-size: 18px;
-        font-weight: bold;
-        color: #fff;
-        margin-bottom: 5px;
-    }
-    
-    .user-song-status {
-        font-size: 14px;
-        color: #00ff88;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    
-    .user-stats {
-        display: flex;
-        gap: 20px;
-        margin-bottom: 30px;
-    }
-    
-    .user-stat-card {
-        background: #222;
-        padding: 20px;
-        border-radius: 10px;
-        flex: 1;
-        text-align: center;
-        border: 1px solid #333;
-    }
-    
-    .user-stat-number {
-        font-size: 28px;
-        font-weight: bold;
-        color: #00a8ff;
-    }
-    
-    .user-stat-label {
-        font-size: 14px;
-        color: #aaa;
-        margin-top: 5px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Get user songs
-    user_songs = get_uploaded_songs(show_unshared=False)
-    shared_links = load_shared_links()
-    
-    # Django-style User Dashboard HTML
-    user_html = f"""
-    <div class="user-container">
-        <div class="user-header">
-            <div class="user-title">👤 {st.session_state.user}'s Dashboard</div>
-            <button class="user-btn logout" onclick="window.location.href='?logout=true'">🚪 Logout</button>
-        </div>
-        
-        <div class="user-stats">
-            <div class="user-stat-card">
-                <div class="user-stat-number">{len(user_songs)}</div>
-                <div class="user-stat-label">Available Songs</div>
-            </div>
-            <div class="user-stat-card">
-                <div class="user-stat-number">{len(shared_links)}</div>
-                <div class="user-stat-label">Shared by Admin</div>
-            </div>
-        </div>
-        
-        <h3 style="color:#00a8ff;margin-bottom:20px;">🎵 Available Songs (Only Shared)</h3>
-    """
-    
-    if not user_songs:
-        user_html += """
-        <div class="user-no-songs">
-            <h3 style="color:#ccc;margin-bottom:15px;">❌ No shared songs available</h3>
-            <p style="color:#aaa;margin-bottom:20px;">Contact admin to share songs with you.</p>
-            <div style="font-size:14px;color:#777;background:#1a1a1a;padding:15px;border-radius:8px;">
-                <strong>👑 Admin-only features:</strong>
-                <ul style="text-align:left;padding-left:20px;margin-top:10px;">
-                    <li>Upload new songs</li>
-                    <li>Share/unshare songs with users</li>
-                    <li>Manage all song files</li>
-                </ul>
-            </div>
-        </div>
-        """
-    else:
-        for song in user_songs:
+    elif page_sidebar == "Songs List":
+        st.subheader("🎵 All Songs List (Admin View)")
+        uploaded_songs = get_uploaded_songs(show_unshared=True)
+        if not uploaded_songs:
+            st.warning("❌ No songs uploaded yet.")
+        else:
+            for idx, s in enumerate(uploaded_songs):
+                col1, col2, col3 = st.columns([3, 1, 2])
+                safe_s = quote(s)
+
+                with col1:
+                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                with col2:
+                    if st.button("▶ Play", key=f"play_{s}_{idx}"):
+                        st.session_state.selected_song = s
+                        st.session_state.page = "Song Player"
+
+                        st.query_params["song"] = quote(s)
+                        save_session_to_db()
+                        st.rerun()
+
+                with col3:
+                    share_url = f"{APP_URL}?song={safe_s}"
+                    st.markdown(f"[🔗 Share Link]({share_url})")
+
+    elif page_sidebar == "Share Links":
+        st.header("🔗 Manage Shared Links")
+        all_songs = get_uploaded_songs(show_unshared=True)
+        shared_links_data = load_shared_links()
+
+        for song in all_songs:
+            col1, col2, col3, col4 = st.columns([2.5, 1, 1, 1.5])
             safe_song = quote(song)
-            user_html += f"""
-            <div class="user-song-item">
-                <div class="user-song-info">
-                    <div class="user-song-name">✅ {song}</div>
-                    <div class="user-song-status">
-                        <span>🎤 Ready to sing!</span>
-                    </div>
-                </div>
-                <button class="user-btn" onclick="playSong('{song}')">🎤 Sing Now</button>
-            </div>
-            """
-    
-    user_html += """
-    </div>
-    
-    <script>
-    function playSong(songName) {
-        window.location.href = '?song=' + encodeURIComponent(songName);
-    }
-    </script>
-    """
-    
-    # Render the user dashboard
-    html(user_html, height=700, scrolling=True)
-    
-    # Handle logout
-    if "logout" in st.query_params:
+            is_shared = song in shared_links_data
+
+            with col1:
+                status = "✅ SHARED" if is_shared else "❌ NOT SHARED"
+                st.write(f"{song} - {status}")
+
+            with col2:
+                if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
+                    if is_shared:
+                        delete_shared_link(song)
+                        st.success(f"✅ {song} unshared! Users can no longer see this song.")
+                    else:
+                        save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
+                        share_url = f"{APP_URL}?song={safe_song}"
+                        st.success(f"✅ {song} shared! Link: {share_url}")
+                    time.sleep(0.5)
+                    st.rerun()
+
+            with col3:
+                if is_shared:
+                    if st.button("🚫 Unshare", key=f"unshare_{song}"):
+                        delete_shared_link(song)
+                        st.success(f"✅ {song} unshared! Users cannot see this song anymore.")
+                        time.sleep(0.5)
+                        st.rerun()
+
+            with col4:
+                if is_shared:
+                    share_url = f"{APP_URL}?song={safe_song}"
+                    st.markdown(f"[📱 Open Link]({share_url})")
+
+    if st.sidebar.button("🚪 Logout", key="admin_logout"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.page = "Login"
         save_session_to_db()
         st.rerun()
 
-# =============== SONG PLAYER (SAME AS BEFORE) ===============
+# =============== USER DASHBOARD ===============
+elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
+    # Auto-save session
+    save_session_to_db()
+    
+    st.title(f"👤 User Dashboard - {st.session_state.user}")
+
+    st.subheader("🎵 Available Songs (Only Shared Songs)")
+    uploaded_songs = get_uploaded_songs(show_unshared=False)
+
+    if not uploaded_songs:
+        st.warning("❌ No shared songs available. Contact admin to share songs.")
+        st.info("👑 Only admin-shared songs appear here for users.")
+    else:
+        for idx, song in enumerate(uploaded_songs):
+            col1, col2 = st.columns([3,1])
+            with col1:
+                st.write(f"✅ {song} (Shared)")
+            with col2:
+                if st.button("▶ Play", key=f"user_play_{song}_{idx}"):
+                    st.session_state.selected_song = song
+                    st.session_state.page = "Song Player"
+
+                    st.query_params["song"] = quote(song)
+                    save_session_to_db()
+                    st.rerun()
+
+
+    if st.button("🚪 Logout", key="user_logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.page = "Login"
+        save_session_to_db()
+        st.rerun()
+
+# =============== SONG PLAYER ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
+    # Auto-save session
     save_session_to_db()
     
     st.markdown("""
@@ -1148,6 +645,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
+        # Show back button only for logged-in users
         if st.session_state.role in ["admin", "user"]:
             if st.button("Go Back"):
                 if st.session_state.role == "admin":
@@ -1158,11 +656,16 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
                 st.rerun()
         st.stop()
 
-    # Check access permission
+    # Double-check access permission
     shared_links = load_shared_links()
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
     is_guest = st.session_state.role == "guest"
+
+    # Allow if:
+    # 1. Admin
+    # 2. User already inside app (dashboard nundi vacharu)
+    # 3. Guest with shared link
     came_from_dashboard = st.session_state.role in ["admin", "user"]
 
     if not (is_admin or came_from_dashboard or is_shared):
@@ -1183,7 +686,7 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Karaoke Template (Same as before)
+    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
@@ -1423,12 +926,12 @@ recordBtn.onclick = async () => {
     status.innerText = "🎙 Recording...";
     
     // ✅ AUTOMATIC STOP: Set timeout to stop recording when song ends
-    const songDuration = originalAudio.duration * 1000;
+    const songDuration = originalAudio.duration * 1000; // Convert to milliseconds
     setTimeout(() => {
         if (isRecording) {
-            stopBtn.click();
+            stopBtn.click(); // Automatically click stop button
         }
-    }, songDuration + 500);
+    }, songDuration + 500); // Add 500ms buffer
 };
 
 /* ================== STOP ================== */
@@ -1484,6 +987,7 @@ newRecordingBtn.onclick = () => {
 /* ================== SONG END DETECTION ================== */
 originalAudio.addEventListener('ended', () => {
     if (isRecording) {
+        // If recording is still active when song ends, stop it
         setTimeout(() => {
             if (isRecording) {
                 stopBtn.click();
@@ -1494,6 +998,7 @@ originalAudio.addEventListener('ended', () => {
 
 accompanimentAudio.addEventListener('ended', () => {
     if (isRecording) {
+        // If recording is still active when accompaniment ends, stop it
         setTimeout(() => {
             if (isRecording) {
                 stopBtn.click();
@@ -1511,30 +1016,35 @@ accompanimentAudio.addEventListener('ended', () => {
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
 
-    # Back button logic
+    # ✅ BACK BUTTON LOGIC - ముఖ్యమైన మార్పులు ఇక్కడే
+    # Display back button ONLY for admin or user, NOT for guest
     if st.session_state.role in ["admin", "user"]:
+        # Add back button ONLY for logged-in users
         col1, col2 = st.columns([5, 1])
         with col2:
             if st.button("← Back to Dashboard", key="back_player"):
                 if st.session_state.role == "admin":
                     st.session_state.page = "Admin Dashboard"
-                    st.session_state.selected_song = None
+                    st.session_state.selected_song = None  # Clear song selection
                 elif st.session_state.role == "user":
                     st.session_state.page = "User Dashboard"
-                    st.session_state.selected_song = None
+                    st.session_state.selected_song = None  # Clear song selection
                 
+                # Clear song from query params when going back to dashboard
                 if "song" in st.query_params:
                     del st.query_params["song"]
                 
                 save_session_to_db()
                 st.rerun()
     else:
+        # For guest users, no back button - display empty space
         st.empty()
 
     html(karaoke_html, height=800, width=1920, scrolling=False)
 
 # =============== FALLBACK ===============
 else:
+    # If song exists in URL, NEVER redirect to login
     if "song" in st.query_params:
         st.session_state.page = "Song Player"
     else:
@@ -1542,7 +1052,8 @@ else:
     save_session_to_db()
     st.rerun()
 
-# =============== DEBUG INFO ===============
+
+# =============== DEBUG INFO (Hidden by default) ===============
 with st.sidebar:
     if st.session_state.get("role") == "admin":
         if st.checkbox("Show Debug Info", key="debug_toggle"):
