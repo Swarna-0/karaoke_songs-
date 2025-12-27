@@ -645,15 +645,15 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
-        if st.button("Go Back"):
-            if st.session_state.role == "admin":
-                st.session_state.page = "Admin Dashboard"
-            elif st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-            else:
-                st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
+        # Show back button only for logged-in users
+        if st.session_state.role in ["admin", "user"]:
+            if st.button("Go Back"):
+                if st.session_state.role == "admin":
+                    st.session_state.page = "Admin Dashboard"
+                elif st.session_state.role == "user":
+                    st.session_state.page = "User Dashboard"
+                save_session_to_db()
+                st.rerun()
         st.stop()
 
     # Double-check access permission
@@ -1010,3 +1010,32 @@ newRecordingBtn.onclick = () => {
         st.empty()
 
     html(karaoke_html, height=800, width=1920, scrolling=False)
+
+# =============== FALLBACK ===============
+else:
+    # If song exists in URL, NEVER redirect to login
+    if "song" in st.query_params:
+        st.session_state.page = "Song Player"
+    else:
+        st.session_state.page = "Login"
+    save_session_to_db()
+    st.rerun()
+
+
+# =============== DEBUG INFO (Hidden by default) ===============
+with st.sidebar:
+    if st.session_state.get("role") == "admin":
+        if st.checkbox("Show Debug Info", key="debug_toggle"):
+            st.write("### Debug Info")
+            st.write(f"Page: {st.session_state.get('page')}")
+            st.write(f"User: {st.session_state.get('user')}")
+            st.write(f"Role: {st.session_state.get('role')}")
+            st.write(f"Selected Song: {st.session_state.get('selected_song')}")
+            st.write(f"Query Params: {dict(st.query_params)}")
+            
+            if st.button("Force Reset", key="debug_reset"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.session_state.page = "Login"
+                save_session_to_db()
+                st.rerun()
