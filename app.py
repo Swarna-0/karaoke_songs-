@@ -924,6 +924,14 @@ recordBtn.onclick = async () => {
     recordBtn.style.display = "none";
     stopBtn.style.display = "inline-block";
     status.innerText = "🎙 Recording...";
+    
+    // ✅ AUTOMATIC STOP: Set timeout to stop recording when song ends
+    const songDuration = originalAudio.duration * 1000; // Convert to milliseconds
+    setTimeout(() => {
+        if (isRecording) {
+            stopBtn.click(); // Automatically click stop button
+        }
+    }, songDuration + 500); // Add 500ms buffer
 };
 
 /* ================== STOP ================== */
@@ -975,6 +983,29 @@ newRecordingBtn.onclick = () => {
     playBtn.innerText = "▶ Play";
     status.innerText = "Ready 🎤";
 };
+
+/* ================== SONG END DETECTION ================== */
+originalAudio.addEventListener('ended', () => {
+    if (isRecording) {
+        // If recording is still active when song ends, stop it
+        setTimeout(() => {
+            if (isRecording) {
+                stopBtn.click();
+            }
+        }, 100);
+    }
+});
+
+accompanimentAudio.addEventListener('ended', () => {
+    if (isRecording) {
+        // If recording is still active when accompaniment ends, stop it
+        setTimeout(() => {
+            if (isRecording) {
+                stopBtn.click();
+            }
+        }, 100);
+    }
+});
 </script>
 </body>
 </html>
