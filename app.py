@@ -657,8 +657,8 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     is_guest = st.session_state.role == "guest"
 
     if not (is_shared or is_admin):
-    st.error("❌ Access denied!")
-    st.stop()
+        st.error("❌ Access denied!")
+        st.stop()
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
