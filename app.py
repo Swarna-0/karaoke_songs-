@@ -280,54 +280,24 @@ def check_and_create_session_id():
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
 
-# =============== UPDATED: QUERY PARAMETER PROCESSING ===============
+# =============== FIXED: QUERY PARAMETER PROCESSING ===============
 def process_query_params():
-    """Process query parameters on every page load"""
     query_params = st.query_params
-    
-    # Check for song parameter
+
     if "song" in query_params:
         song_from_url = unquote(query_params["song"])
-        shared_links = load_shared_links()
-        
-        # Check if song exists in songs directory
-        song_exists = os.path.exists(os.path.join(songs_dir, f"{song_from_url}_original.mp3"))
-        
-        if song_exists:
-            # If user is admin, allow access to any song
-            if st.session_state.get('role') == 'admin':
-                st.session_state.selected_song = song_from_url
-                st.session_state.page = "Song Player"
-                save_session_to_db()
-                st.query_params.clear()
-                st.rerun()
-            
-            # If song is shared, allow access even without admin sharing
-            elif song_from_url in shared_links:
-                # Set user as guest if not logged in
-                if 'user' not in st.session_state or st.session_state.user is None:
-                    st.session_state.user = "guest"
-                    st.session_state.role = "guest"
-                
-                st.session_state.selected_song = song_from_url
-                st.session_state.page = "Song Player"
-                save_session_to_db()
-                st.query_params.clear()
-                st.rerun()
-            
-            # If user is logged in (user role), only allow shared songs
-            elif st.session_state.get('role') == 'user':
-                # Only allow if song is shared
-                if song_from_url in shared_links:
-                    st.session_state.selected_song = song_from_url
-                    st.session_state.page = "Song Player"
-                    save_session_to_db()
-                    st.query_params.clear()
-                    st.rerun()
-        
-        # If song doesn't exist, clear the query param
-        else:
-            st.query_params.clear()
+
+        # Always set song from URL
+        st.session_state.selected_song = song_from_url
+        st.session_state.page = "Song Player"
+
+        # Auto guest if not logged in
+        if not st.session_state.get("user"):
+            st.session_state.user = "guest"
+            st.session_state.role = "guest"
+
+        save_session_to_db()
+
 
 # =============== INITIALIZE SESSION ===============
 check_and_create_session_id()
@@ -341,8 +311,6 @@ if "page" not in st.session_state:
     st.session_state.page = "Login"
 if "selected_song" not in st.session_state:
     st.session_state.selected_song = None
-if "previous_page" not in st.session_state:
-    st.session_state.previous_page = None
 
 # Load persistent session data
 load_session_from_db()
@@ -475,7 +443,6 @@ if st.session_state.page == "Login":
                     st.session_state.role = "admin"
                     st.session_state.page = "Admin Dashboard"
                     st.session_state.selected_song = None  # Clear any song selection
-                    st.session_state.previous_page = None
                     save_session_to_db()
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
@@ -483,7 +450,6 @@ if st.session_state.page == "Login":
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
                     st.session_state.selected_song = None  # Clear any song selection
-                    st.session_state.previous_page = None
                     save_session_to_db()
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
@@ -491,7 +457,6 @@ if st.session_state.page == "Login":
                     st.session_state.role = "user"
                     st.session_state.page = "User Dashboard"
                     st.session_state.selected_song = None  # Clear any song selection
-                    st.session_state.previous_page = None
                     save_session_to_db()
                     st.rerun()
                 else:
@@ -562,8 +527,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}_{idx}"):
-                        # Store current page before going to player
-                        st.session_state.previous_page = "Admin Dashboard"
                         st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
                         save_session_to_db()
@@ -571,7 +534,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 with col3:
                     share_url = f"{APP_URL}?song={safe_s}"
                     st.markdown(f"[🔗 Share Link]({share_url})")
-                    st.text(f"URL: {share_url}")
 
     elif page_sidebar == "Share Links":
         st.header("🔗 Manage Shared Links")
@@ -579,7 +541,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
         shared_links_data = load_shared_links()
 
         for song in all_songs:
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 2, 2])
+            col1, col2, col3, col4 = st.columns([2.5, 1, 1, 1.5])
             safe_song = quote(song)
             is_shared = song in shared_links_data
 
@@ -588,20 +550,20 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 st.write(f"{song} - {status}")
 
             with col2:
-                if st.button("🔄 Toggle", key=f"toggle_share_{song}"):
+                if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users can no longer see this song.")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
                         share_url = f"{APP_URL}?song={safe_song}"
-                        st.success(f"✅ {song} shared! Link created.")
+                        st.success(f"✅ {song} shared! Link: {share_url}")
                     time.sleep(0.5)
                     st.rerun()
 
             with col3:
                 if is_shared:
-                    if st.button("🚫 Remove", key=f"unshare_{song}"):
+                    if st.button("🚫 Unshare", key=f"unshare_{song}"):
                         delete_shared_link(song)
                         st.success(f"✅ {song} unshared! Users cannot see this song anymore.")
                         time.sleep(0.5)
@@ -611,11 +573,6 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 if is_shared:
                     share_url = f"{APP_URL}?song={safe_song}"
                     st.markdown(f"[📱 Open Link]({share_url})")
-
-            with col5:
-                if is_shared:
-                    share_url = f"{APP_URL}?song={safe_song}"
-                    st.code(share_url, language="text")
 
     if st.sidebar.button("🚪 Logout", key="admin_logout"):
         for key in list(st.session_state.keys()):
@@ -644,8 +601,6 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                 st.write(f"✅ {song} (Shared)")
             with col2:
                 if st.button("▶ Play", key=f"user_play_{song}_{idx}"):
-                    # Store current page before going to player
-                    st.session_state.previous_page = "User Dashboard"
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
                     save_session_to_db()
@@ -663,20 +618,34 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     # Auto-save session
     save_session_to_db()
     
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none !important;}
+    header {visibility: hidden !important;}
+    .st-emotion-cache-1pahdxg {display:none !important;}
+    .st-emotion-cache-18ni7ap {padding: 0 !important;}
+    footer {visibility: hidden !important;}
+    div.block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+    }
+    html, body {
+        overflow: hidden !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     selected_song = st.session_state.get("selected_song", None)
     if not selected_song:
         st.error("No song selected!")
         if st.button("Go Back"):
-            # Go back to previous page or dashboard based on role
             if st.session_state.role == "admin":
                 st.session_state.page = "Admin Dashboard"
             elif st.session_state.role == "user":
                 st.session_state.page = "User Dashboard"
-            elif st.session_state.role == "guest":
-                st.session_state.page = "Login"
             else:
                 st.session_state.page = "Login"
-            st.session_state.selected_song = None
             save_session_to_db()
             st.rerun()
         st.stop()
@@ -686,49 +655,10 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     is_shared = selected_song in shared_links
     is_admin = st.session_state.role == "admin"
     is_guest = st.session_state.role == "guest"
-    is_user = st.session_state.role == "user"
 
-    # Check if song exists
-    song_exists = os.path.exists(os.path.join(songs_dir, f"{selected_song}_original.mp3"))
-    
-    if not song_exists:
-        st.error("❌ Song file not found!")
-        if st.button("Go Back"):
-            if st.session_state.role == "admin":
-                st.session_state.page = "Admin Dashboard"
-            elif st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-            elif st.session_state.role == "guest":
-                st.session_state.page = "Login"
-            st.session_state.selected_song = None
-            save_session_to_db()
-            st.rerun()
-        st.stop()
-
-    # Access control logic
-    if is_admin:
-        # Admin can access any song
-        pass
-    elif is_guest:
-        # Guest can only access shared songs
-        if not is_shared:
-            st.error("❌ Access denied! This song is not shared.")
-            if st.button("Go Back"):
-                st.session_state.page = "Login"
-                st.session_state.selected_song = None
-                save_session_to_db()
-                st.rerun()
-            st.stop()
-    elif is_user:
-        # User can only access shared songs
-        if not is_shared:
-            st.error("❌ Access denied! This song is not shared with users.")
-            if st.button("Go Back"):
-                st.session_state.page = "User Dashboard"
-                st.session_state.selected_song = None
-                save_session_to_db()
-                st.rerun()
-            st.stop()
+    if not (is_shared or is_admin):
+    st.error("❌ Access denied!")
+    st.stop()
 
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
@@ -744,79 +674,13 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # Determine if back button should be shown
-    show_back_button = not is_guest  # Don't show back button for guests coming from shared links
-
-    # Hide back button for guest users (coming from shared links)
-    if show_back_button:
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {display: none !important;}
-        header {visibility: hidden !important;}
-        .st-emotion-cache-1pahdxg {display:none !important;}
-        .st-emotion-cache-18ni7ap {padding: 0 !important;}
-        footer {visibility: hidden !important;}
-        div.block-container {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100vw !important;
-        }
-        html, body {
-            overflow: hidden !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Add back button for logged-in users
-        col1, col2 = st.columns([5, 1])
-        with col2:
-            if st.button("← Back", key="back_player"):
-                # Use previous_page if available, otherwise go to dashboard based on role
-                if st.session_state.get('previous_page'):
-                    st.session_state.page = st.session_state.previous_page
-                elif st.session_state.role == "admin":
-                    st.session_state.page = "Admin Dashboard"
-                elif st.session_state.role == "user":
-                    st.session_state.page = "User Dashboard"
-                else:
-                    st.session_state.page = "Login"
-                st.session_state.selected_song = None
-                save_session_to_db()
-                st.rerun()
-    else:
-        # For guest users, hide everything including back button
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {display: none !important;}
-        header {visibility: hidden !important;}
-        .st-emotion-cache-1pahdxg {display:none !important;}
-        .st-emotion-cache-18ni7ap {padding: 0 !important;}
-        footer {visibility: hidden !important;}
-        .stApp > div:first-child {
-            padding: 0 !important;
-        }
-        div.block-container {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100vw !important;
-        }
-        html, body {
-            overflow: hidden !important;
-        }
-        /* Hide all Streamlit elements except the HTML component */
-        .stApp > div:not(:last-child) {
-            display: none !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
     # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
     karaoke_template = """
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>🎤 Karaoke Reels - %%SONG_NAME%%</title>
+  <title>🎤 Karaoke Reels</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
@@ -1108,15 +972,34 @@ newRecordingBtn.onclick = () => {
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
     karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
     karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
-    karaoke_html = karaoke_html.replace("%%SONG_NAME%%", selected_song)
+
+    # Add back button
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        if st.button("← Back", key="back_player"):
+            if st.session_state.role == "admin":
+                st.session_state.page = "Admin Dashboard"
+                st.session_state.selected_song = None  # Clear song selection
+            elif st.session_state.role == "user":
+                st.session_state.page = "User Dashboard"
+                st.session_state.selected_song = None  # Clear song selection
+            else:
+                st.session_state.page = "Login"
+            save_session_to_db()
+            st.rerun()
 
     html(karaoke_html, height=800, width=1920, scrolling=False)
 
 # =============== FALLBACK ===============
 else:
-    st.session_state.page = "Login"
+    # If song exists in URL, NEVER redirect to login
+    if "song" in st.query_params:
+        st.session_state.page = "Song Player"
+    else:
+        st.session_state.page = "Login"
     save_session_to_db()
     st.rerun()
+
 
 # =============== DEBUG INFO (Hidden by default) ===============
 with st.sidebar:
@@ -1127,7 +1010,6 @@ with st.sidebar:
             st.write(f"User: {st.session_state.get('user')}")
             st.write(f"Role: {st.session_state.get('role')}")
             st.write(f"Selected Song: {st.session_state.get('selected_song')}")
-            st.write(f"Previous Page: {st.session_state.get('previous_page')}")
             st.write(f"Query Params: {dict(st.query_params)}")
             
             if st.button("Force Reset", key="debug_reset"):
