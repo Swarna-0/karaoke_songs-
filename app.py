@@ -280,39 +280,29 @@ def check_and_create_session_id():
         import uuid
         st.session_state.session_id = str(uuid.uuid4())
 
-# =============== UPDATED: QUERY PARAMETER PROCESSING ===============
+# =============== FIXED QUERY PARAMETER PROCESSING - URL STAYS CONSTANT ===============
 def process_query_params():
-    """Process query parameters on every page load - FIXED VERSION"""
+    """Process query parameters - URL stays with song parameter always"""
     query_params = st.query_params
     
-    # Check for song parameter
+    # Check for song parameter - DON'T CLEAR IT, keep it persistent
     if "song" in query_params:
-        song_from_url = unquote(query_params["song"])
+        song_from_url = unquote(query_params["song"][0] if query_params["song"] else "")
         shared_links = load_shared_links()
         
-        # Check if song exists in files
-        song_file_exists = os.path.exists(os.path.join(songs_dir, f"{song_from_url}_original.mp3"))
-        
-        if song_file_exists:
-            # If song exists (whether shared or not), set it as selected
+        # Always validate song exists
+        if os.path.exists(os.path.join(songs_dir, f"{song_from_url}_original.mp3")):
+            # Set song and page regardless of login status
             st.session_state.selected_song = song_from_url
-            st.session_state.page = "Song Player"
+            st.session_state.from_url_song = True  # Track if came from URL
             
-            # Set user role based on current state
+            # Auto-login as guest if not logged in
             if 'user' not in st.session_state or st.session_state.user is None:
-                # If not logged in and song is shared, set as guest
-                if song_from_url in shared_links:
-                    st.session_state.user = "guest"
-                    st.session_state.role = "guest"
-                else:
-                    # If not shared and not logged in, stay on login
-                    st.session_state.page = "Login"
-                    return
+                st.session_state.user = "guest"
+                st.session_state.role = "guest"
             
+            st.session_state.page = "Song Player"
             save_session_to_db()
-            
-            # DON'T clear query params - keep them in URL always
-            st.rerun()
 
 # =============== INITIALIZE SESSION ===============
 check_and_create_session_id()
@@ -326,81 +316,69 @@ if "page" not in st.session_state:
     st.session_state.page = "Login"
 if "selected_song" not in st.session_state:
     st.session_state.selected_song = None
+if "from_url_song" not in st.session_state:
+    st.session_state.from_url_song = False
 
 # Load persistent session data
 load_session_from_db()
 
-# Process query parameters FIRST - IMPORTANT
+# Process query parameters FIRST (before metadata load)
 process_query_params()
 
 metadata = load_metadata()
 
 # Logo
 default_logo_path = os.path.join(logo_dir, "branks3_logo.png")
-if not os.path.exists(default_logo_path):
-    # Don't show uploader on login page to avoid rerun issues
-    pass
 logo_b64 = file_to_base64(default_logo_path) if os.path.exists(default_logo_path) else ""
 
-# =============== RESPONSIVE LOGIN PAGE ===============
+# Hide Streamlit UI elements globally
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {display:none !important;}
+header {visibility:hidden !important;}
+footer {visibility:hidden !important;}
+</style>
+""", unsafe_allow_html=True)
+
+# =============== LOGIN PAGE ===============
 if st.session_state.page == "Login":
     # Save session state
     save_session_to_db()
     
-    # Check if there's a song in query params but user needs to login
-    query_params = st.query_params
-    if "song" in query_params:
-        song_from_url = unquote(query_params["song"])
-        # Store the song in session state for later use after login
-        if 'pending_song' not in st.session_state:
-            st.session_state.pending_song = song_from_url
-    
     st.markdown("""
     <style>
-    [data-testid="stSidebar"] {display:none;}
-    header {visibility:hidden;}
-
     body {
         background: radial-gradient(circle at top,#335d8c 0,#0b1b30 55%,#020712 100%);
     }
-
-    /* INNER CONTENT PADDING - Reduced since box has padding now */
     .login-content {
-        padding: 1.8rem 2.2rem 2.2rem 2.2rem; /* Top padding reduced */
+        padding: 1.8rem 2.2rem 2.2rem 2.2rem;
     }
-
-    /* CENTERED HEADER SECTION */
     .login-header {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.8rem; /* Slightly more gap */
-        margin-bottom: 1.6rem; /* More bottom margin */
+        gap: 0.8rem;
+        margin-bottom: 1.6rem;
         text-align: center;
     }
-
     .login-header img {
         width: 60px;
         height: 60px;
         border-radius: 50%;
         border: 2px solid rgba(255,255,255,0.4);
     }
-
     .login-title {
         font-size: 1.6rem;
         font-weight: 700;
         width: 100%;
     }
-
     .login-sub {
         font-size: 0.9rem;
         color: #c3cfdd;
         margin-bottom: 0.5rem;
         width: 100%;
     }
-
-    /* CREDENTIALS INFO */
     .credentials-info {
         background: rgba(5,10,25,0.8);
         border: 1px solid rgba(255,255,255,0.2);
@@ -410,26 +388,22 @@ if st.session_state.page == "Login":
         font-size: 0.85rem;
         color: #b5c2d2;
     }
-
-    /* INPUTS BLEND WITH BOX */
     .stTextInput input {
         background: rgba(5,10,25,0.7) !important;
         border-radius: 10px !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        padding: 12px 14px !important; /* Better input padding */
+        padding: 12px 14px !important;
     }
-
     .stTextInput input:focus {
         border-color: rgba(255,255,255,0.6) !important;
         box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
     }
-
     .stButton button {
         width: 100%;
-        height: 44px; /* Slightly taller */
+        height: 44px;
         background: linear-gradient(to right, #1f2937, #020712);
-        border-radius: 10px; /* Match input radius */
+        border-radius: 10px;
         font-weight: 600;
         margin-top: 0.6rem;
         color: white;
@@ -438,13 +412,9 @@ if st.session_state.page == "Login":
     </style>
     """, unsafe_allow_html=True)
 
-    # -------- CENTER ALIGN COLUMN --------
     left, center, right = st.columns([1, 1.5, 1])
-
     with center:
         st.markdown('<div class="login-content">', unsafe_allow_html=True)
-
-        # Header with better spacing
         st.markdown(f"""
         <div class="login-header">
             <img src="data:image/png;base64,{logo_b64}">
@@ -464,43 +434,19 @@ if st.session_state.page == "Login":
                 if username == "admin" and ADMIN_HASH and hashed_pass == ADMIN_HASH:
                     st.session_state.user = username
                     st.session_state.role = "admin"
-                    
-                    # Check if there's a pending song from URL
-                    if 'pending_song' in st.session_state:
-                        st.session_state.selected_song = st.session_state.pending_song
-                        st.session_state.page = "Song Player"
-                        del st.session_state.pending_song
-                    else:
-                        st.session_state.page = "Admin Dashboard"
-                    
+                    st.session_state.page = "Admin Dashboard"
                     save_session_to_db()
                     st.rerun()
                 elif username == "user1" and USER1_HASH and hashed_pass == USER1_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
-                    
-                    # Check if there's a pending song from URL
-                    if 'pending_song' in st.session_state:
-                        st.session_state.selected_song = st.session_state.pending_song
-                        st.session_state.page = "Song Player"
-                        del st.session_state.pending_song
-                    else:
-                        st.session_state.page = "User Dashboard"
-                    
+                    st.session_state.page = "User Dashboard"
                     save_session_to_db()
                     st.rerun()
                 elif username == "user2" and USER2_HASH and hashed_pass == USER2_HASH:
                     st.session_state.user = username
                     st.session_state.role = "user"
-                    
-                    # Check if there's a pending song from URL
-                    if 'pending_song' in st.session_state:
-                        st.session_state.selected_song = st.session_state.pending_song
-                        st.session_state.page = "Song Player"
-                        del st.session_state.pending_song
-                    else:
-                        st.session_state.page = "User Dashboard"
-                    
+                    st.session_state.page = "User Dashboard"
                     save_session_to_db()
                     st.rerun()
                 else:
@@ -511,16 +457,13 @@ if st.session_state.page == "Login":
             Don't have access? Contact admin.
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown('</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =============== ADMIN DASHBOARD ===============
 elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "admin":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👑 Admin Dashboard - {st.session_state.user}")
-
     page_sidebar = st.sidebar.radio("Navigate", ["Upload Songs", "Songs List", "Share Links"], key="admin_nav")
 
     if page_sidebar == "Upload Songs":
@@ -568,13 +511,12 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 safe_s = quote(s)
 
                 with col1:
-                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}")
+                    st.write(f"{s}** - by {metadata.get(s, {}).get('uploaded_by', 'Unknown')}**")
                 with col2:
                     if st.button("▶ Play", key=f"play_{s}_{idx}"):
                         st.session_state.selected_song = s
                         st.session_state.page = "Song Player"
-                        # Set query parameter to keep song in URL
-                        st.query_params["song"] = s
+                        st.session_state.from_url_song = False
                         save_session_to_db()
                         st.rerun()
                 with col3:
@@ -599,7 +541,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 if st.button("🔄 Toggle Share", key=f"toggle_share_{song}"):
                     if is_shared:
                         delete_shared_link(song)
-                        st.success(f"✅ {song} unshared! Users can no longer see this song.")
+                        st.success(f"✅ {song} unshared!")
                     else:
                         save_shared_link(song, {"shared_by": st.session_state.user, "active": True})
                         share_url = f"{APP_URL}?song={safe_song}"
@@ -611,7 +553,7 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                 if is_shared:
                     if st.button("🚫 Unshare", key=f"unshare_{song}"):
                         delete_shared_link(song)
-                        st.success(f"✅ {song} unshared! Users cannot see this song anymore.")
+                        st.success(f"✅ {song} unshared!")
                         time.sleep(0.5)
                         st.rerun()
 
@@ -621,15 +563,15 @@ elif st.session_state.page == "Admin Dashboard" and st.session_state.role == "ad
                     st.markdown(f"[📱 Open Link]({share_url})")
 
     if st.sidebar.button("🚪 Logout", key="admin_logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        for key in ['user', 'role', 'page', 'selected_song']:
+            if key in st.session_state:
+                del st.session_state[key]
         st.session_state.page = "Login"
         save_session_to_db()
         st.rerun()
 
 # =============== USER DASHBOARD ===============
 elif st.session_state.page == "User Dashboard" and st.session_state.role == "user":
-    # Auto-save session
     save_session_to_db()
     
     st.title(f"👤 User Dashboard - {st.session_state.user}")
@@ -649,86 +591,66 @@ elif st.session_state.page == "User Dashboard" and st.session_state.role == "use
                 if st.button("▶ Play", key=f"user_play_{song}_{idx}"):
                     st.session_state.selected_song = song
                     st.session_state.page = "Song Player"
-                    # Set query parameter to keep song in URL
-                    st.query_params["song"] = song
+                    st.session_state.from_url_song = False
                     save_session_to_db()
                     st.rerun()
 
     if st.button("🚪 Logout", key="user_logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        for key in ['user', 'role', 'page', 'selected_song']:
+            if key in st.session_state:
+                del st.session_state[key]
         st.session_state.page = "Login"
         save_session_to_db()
         st.rerun()
 
-# =============== SONG PLAYER ===============
+# =============== SONG PLAYER - NO BACK BUTTON FOR URL LINKS ===============
 elif st.session_state.page == "Song Player" and st.session_state.get("selected_song"):
-    # Auto-save session
     save_session_to_db()
     
-    # Ensure query parameter is always set when in Song Player
-    selected_song = st.session_state.get("selected_song")
-    if selected_song:
-        # Always set the query parameter to keep song in URL
-        if "song" not in st.query_params or st.query_params["song"] != selected_song:
-            st.query_params["song"] = selected_song
+    selected_song = st.session_state.selected_song
+    is_from_url = st.session_state.get("from_url_song", False)
     
-    # Hide back button for guests (link users)
-    show_back_button = st.session_state.role != "guest"
-    
-    if show_back_button:
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {display: none !important;}
-        header {visibility: hidden !important;}
-        .st-emotion-cache-1pahdxg {display:none !important;}
-        .st-emotion-cache-18ni7ap {padding: 0 !important;}
-        footer {visibility: hidden !important;}
-        div.block-container {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100vw !important;
-        }
-        html, body {
-            overflow: hidden !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    # Fullscreen karaoke player - NO BACK BUTTON FOR URL LINKS
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none !important;}
+    header {visibility: hidden !important;}
+    .st-emotion-cache-1pahdxg {display:none !important;}
+    .st-emotion-cache-18ni7ap {padding: 0 !important;}
+    footer {visibility: hidden !important;}
+    div.block-container {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+    }
+    html, body {
+        overflow: hidden !important;
+        height: 100vh !important;
+    }
+    .back-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    selected_song = st.session_state.get("selected_song", None)
-    if not selected_song:
-        st.error("No song selected!")
-        if st.button("Go Back"):
-            if st.session_state.role == "admin":
-                st.session_state.page = "Admin Dashboard"
-            elif st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-            else:
-                st.session_state.page = "Login"
-            save_session_to_db()
-            st.rerun()
-        st.stop()
-
-    # Double-check access permission
-    shared_links = load_shared_links()
-    is_shared = selected_song in shared_links
-    is_admin = st.session_state.role == "admin"
-    is_guest = st.session_state.role == "guest"
-
-    if not (is_shared or is_admin or is_guest):
-        st.error("❌ Access denied! This song is not shared with users.")
-        if st.button("Go Back"):
-            if st.session_state.role == "user":
-                st.session_state.page = "User Dashboard"
-            else:
-                st.session_state.page = "Admin Dashboard"
-            save_session_to_db()
-            st.rerun()
-        st.stop()
-
+    # Validate song files exist
     original_path = os.path.join(songs_dir, f"{selected_song}_original.mp3")
     accompaniment_path = os.path.join(songs_dir, f"{selected_song}_accompaniment.mp3")
+    
+    if not os.path.exists(original_path) or not os.path.exists(accompaniment_path):
+        st.error(f"❌ Song files missing: {selected_song}")
+        if st.button("← Go Back"):
+            st.session_state.page = "Login"
+            st.session_state.selected_song = None
+            save_session_to_db()
+            st.rerun()
+        st.stop()
 
+    # Find lyrics image
     lyrics_path = ""
     for ext in [".jpg", ".jpeg", ".png"]:
         p = os.path.join(lyrics_dir, f"{selected_song}_lyrics_bg{ext}")
@@ -740,13 +662,13 @@ elif st.session_state.page == "Song Player" and st.session_state.get("selected_s
     accompaniment_b64 = file_to_base64(accompaniment_path)
     lyrics_b64 = file_to_base64(lyrics_path)
 
-    # ✅ PERFECT IMAGE SIZE + LOGO POSITIONING LIKE DJANGO VERSION
+    # Karaoke HTML with NO BACK BUTTON for URL links
     karaoke_template = """
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>🎤 Karaoke Reels</title>
+  <title>🎤 Karaoke Reels - %%SONG_NAME%%</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #000; font-family: 'Poppins', sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
@@ -760,12 +682,30 @@ button:active { transform: scale(0.95); }
 .final-output { position: fixed; width: 100vw; height: 100vh; top: 0; left: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
 #logoImg { position: absolute; top: 20px; left: 20px; width: 60px; z-index: 50; opacity: 0.6; }
 canvas { display: none; }
-.back-button { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 14px; z-index: 100; }
+.back-button { 
+    position: absolute; 
+    top: 20px; 
+    right: 20px; 
+    background: rgba(255,0,102,0.9); 
+    color: white; 
+    padding: 12px 20px; 
+    border-radius: 25px; 
+    text-decoration: none; 
+    font-size: 14px; 
+    z-index: 100; 
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255,0,102,0.4);
+}
+.back-button:hover { background: rgba(255,0,102,1); }
+.back-button:active { transform: scale(0.98); }
 </style>
 </head>
 <body>
 
 <div class="reel-container" id="reelContainer">
+    %%BACK_BUTTON%%
     <img class="reel-bg" id="mainBg" src="data:image/jpeg;base64,%%LYRICS_B64%%">
     <img id="logoImg" src="data:image/png;base64,%%LOGO_B64%%">
     <div id="status">Ready 🎤</div>
@@ -796,41 +736,33 @@ canvas { display: none; }
 <canvas id="recordingCanvas" width="1920" height="1080"></canvas>
 
 <script>
-/* ================== GLOBAL STATE ================== */
 let mediaRecorder;
 let recordedChunks = [];
 let playRecordingAudio = null;
 let lastRecordingURL = null;
-
 let audioContext, micSource, accSource;
 let canvasRafId = null;
 let isRecording = false;
 let isPlayingRecording = false;
 
-/* ================== ELEMENTS ================== */
 const playBtn = document.getElementById("playBtn");
 const recordBtn = document.getElementById("recordBtn");
 const stopBtn = document.getElementById("stopBtn");
 const status = document.getElementById("status");
-
 const originalAudio = document.getElementById("originalAudio");
 const accompanimentAudio = document.getElementById("accompaniment");
-
 const finalDiv = document.getElementById("finalOutputDiv");
 const mainBg = document.getElementById("mainBg");
 const finalBg = document.getElementById("finalBg");
-
 const playRecordingBtn = document.getElementById("playRecordingBtn");
 const downloadRecordingBtn = document.getElementById("downloadRecordingBtn");
 const newRecordingBtn = document.getElementById("newRecordingBtn");
-
 const canvas = document.getElementById("recordingCanvas");
 const ctx = canvas.getContext("2d");
 
 const logoImg = new Image();
 logoImg.src = document.getElementById("logoImg").src;
 
-/* ================== AUDIO CONTEXT FIX ================== */
 async function ensureAudioContext() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -853,7 +785,6 @@ document.addEventListener("visibilitychange", async () => {
     if (!document.hidden) await ensureAudioContext();
 });
 
-/* ================== PLAY ORIGINAL ================== */
 playBtn.onclick = async () => {
     await ensureAudioContext();
     if (originalAudio.paused) {
@@ -868,14 +799,12 @@ playBtn.onclick = async () => {
     }
 };
 
-/* ================== CANVAS DRAW (DJANGO MATCH) ================== */
 function drawCanvas() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const canvasW = canvas.width;
     const canvasH = canvas.height * 0.85;
-
     const imgRatio = mainBg.naturalWidth / mainBg.naturalHeight;
     const canvasRatio = canvasW / canvasH;
 
@@ -889,11 +818,9 @@ function drawCanvas() {
     }
 
     const x = (canvasW - drawW) / 2;
-    const y = 0; // TOP aligned
-
+    const y = 0;
     ctx.drawImage(mainBg, x, y, drawW, drawH);
 
-    /* LOGO — exact Django feel */
     ctx.globalAlpha = 0.6;
     ctx.drawImage(logoImg, 20, 20, 60, 60);
     ctx.globalAlpha = 1;
@@ -901,7 +828,6 @@ function drawCanvas() {
     canvasRafId = requestAnimationFrame(drawCanvas);
 }
 
-/* ================== RECORD ================== */
 recordBtn.onclick = async () => {
     if (isRecording) return;
     isRecording = true;
@@ -909,11 +835,9 @@ recordBtn.onclick = async () => {
     await ensureAudioContext();
     recordedChunks = [];
 
-    /* MIC */
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     micSource = audioContext.createMediaStreamSource(micStream);
 
-    /* ACCOMPANIMENT */
     const accRes = await fetch(accompanimentAudio.src);
     const accBuf = await accRes.arrayBuffer();
     const accDecoded = await audioContext.decodeAudioData(accBuf);
@@ -952,7 +876,7 @@ recordBtn.onclick = async () => {
         finalDiv.style.display = "flex";
 
         downloadRecordingBtn.href = url;
-        downloadRecordingBtn.download = "karaoke_" + Date.now() + ".webm";
+        downloadRecordingBtn.download = "karaoke_%%SONG_SAFE%%_" + Date.now() + ".webm";
 
         playRecordingBtn.onclick = () => {
             if (!isPlayingRecording) {
@@ -980,7 +904,6 @@ recordBtn.onclick = async () => {
     status.innerText = "🎙 Recording...";
 };
 
-/* ================== STOP ================== */
 stopBtn.onclick = () => {
     if (!isRecording) return;
     isRecording = false;
@@ -995,7 +918,6 @@ stopBtn.onclick = () => {
     status.innerText = "⏹ Processing...";
 };
 
-/* ================== HELPERS ================== */
 function resetPlayBtn() {
     if (playRecordingAudio) {
         playRecordingAudio.pause();
@@ -1005,7 +927,6 @@ function resetPlayBtn() {
     isPlayingRecording = false;
 }
 
-/* ================== NEW RECORDING ================== */
 newRecordingBtn.onclick = () => {
     finalDiv.style.display = "none";
 
@@ -1032,53 +953,25 @@ newRecordingBtn.onclick = () => {
 </script>
 </body>
 </html>
-"""
+    """
 
-    karaoke_html = karaoke_template.replace("%%LYRICS_B64%%", lyrics_b64 or "")
+    # Show back button ONLY if NOT from URL link
+    back_button_html = ""
+    if not is_from_url:
+        back_button_html = f'<button class="back-button" onclick="window.location.href=\'{APP_URL}#dashboard\'">← Back</button>'
+    
+    karaoke_html = karaoke_template.replace("%%SONG_NAME%%", selected_song)
+    karaoke_html = karaoke_html.replace("%%SONG_SAFE%%", selected_song.replace(" ", "_"))
+    karaoke_html = karaoke_html.replace("%%BACK_BUTTON%%", back_button_html)
+    karaoke_html = karaoke_html.replace("%%LYRICS_B64%%", lyrics_b64 or "")
     karaoke_html = karaoke_html.replace("%%LOGO_B64%%", logo_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64 or "")
-    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64 or "")
+    karaoke_html = karaoke_html.replace("%%ORIGINAL_B64%%", original_b64)
+    karaoke_html = karaoke_html.replace("%%ACCOMP_B64%%", accompaniment_b64)
 
-    # Add back button ONLY for logged in users (not for guests)
-    if show_back_button:
-        col1, col2 = st.columns([5, 1])
-        with col2:
-            if st.button("← Back", key="back_player"):
-                if st.session_state.role == "admin":
-                    st.session_state.page = "Admin Dashboard"
-                    # Keep song in query params for consistency
-                    st.query_params["song"] = selected_song
-                elif st.session_state.role == "user":
-                    st.session_state.page = "User Dashboard"
-                    # Keep song in query params for consistency
-                    st.query_params["song"] = selected_song
-                else:
-                    st.session_state.page = "Login"
-                save_session_to_db()
-                st.rerun()
-
-    html(karaoke_html, height=800, width=1920, scrolling=False)
+    html(karaoke_html, height=1000, width=1920, scrolling=False)
 
 # =============== FALLBACK ===============
 else:
     st.session_state.page = "Login"
     save_session_to_db()
     st.rerun()
-
-# =============== DEBUG INFO (Hidden by default) ===============
-with st.sidebar:
-    if st.session_state.get("role") == "admin":
-        if st.checkbox("Show Debug Info", key="debug_toggle"):
-            st.write("### Debug Info")
-            st.write(f"Page: {st.session_state.get('page')}")
-            st.write(f"User: {st.session_state.get('user')}")
-            st.write(f"Role: {st.session_state.get('role')}")
-            st.write(f"Selected Song: {st.session_state.get('selected_song')}")
-            st.write(f"Query Params: {dict(st.query_params)}")
-            
-            if st.button("Force Reset", key="debug_reset"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.session_state.page = "Login"
-                save_session_to_db()
-                st.rerun()
